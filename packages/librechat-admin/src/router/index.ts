@@ -5,7 +5,7 @@ import { resolveFromRoot } from '../utils/paths';
 import fs from 'fs';
 
 /**
- * Factory to build an Express router for the GovGPT admin plugin.
+ * Factory to build an Express router for the soev.ai admin plugin.
  * The JWT-based authentication middleware from LibreChat core **must** be
  * provided by the caller (see packages/custom/mount.js).
  */
@@ -64,7 +64,7 @@ export function buildAdminRouter(
   });
 
   router.get('/health', (_req, res) => {
-    res.json({ plugin: 'govgpt-admin', status: 'ok' });
+    res.json({ plugin: 'soevai-admin', status: 'ok' });
   });
 
   router.get('/config', async (req, res) => {

@@ -1,5 +1,5 @@
 # Dockerfile.multi
-# v0.7.9-rc1
+# v0.8.0
 
 # Base for all builds
 FROM node:20-alpine AS base-min
@@ -27,6 +27,10 @@ COPY api/package*.json ./api/
 FROM base-min AS base
 WORKDIR /app
 RUN npm ci
+# Install admin-frontend dependencies separately (not part of workspace)
+WORKDIR /app/admin-frontend
+RUN npm ci
+WORKDIR /app
 
 # Build `data-provider` package
 FROM base AS data-provider-build
@@ -49,7 +53,7 @@ COPY --from=data-provider-build /app/packages/data-provider/dist /app/packages/d
 COPY --from=data-schemas-build /app/packages/data-schemas/dist /app/packages/data-schemas/dist
 RUN npm run build
 
-# Build librechat-admin package
+# Build `librechat-admin` package
 FROM base AS admin-package-build
 WORKDIR /app/packages/librechat-admin
 COPY packages/librechat-admin ./
@@ -57,19 +61,20 @@ COPY --from=data-provider-build /app/packages/data-provider/dist /app/packages/d
 COPY --from=data-schemas-build /app/packages/data-schemas/dist /app/packages/data-schemas/dist
 RUN npm run build
 
-# Build admin frontend
-FROM base AS admin-frontend-build
-WORKDIR /app/admin-frontend
-# Copy only package.json to avoid lockfile mismatch, then install deps
-COPY admin-frontend/package.json ./
-RUN npm install
-COPY admin-frontend ./
-RUN npm run build
-
-# Build client component library (@librechat/client)
-FROM base AS client-lib-build
+# Build `client` package
+FROM base AS client-package-build
 WORKDIR /app/packages/client
 COPY packages/client ./
+RUN npm run build
+
+# Build admin-frontend
+FROM base AS admin-frontend-build
+WORKDIR /app/admin-frontend
+COPY admin-frontend ./
+COPY --from=data-provider-build /app/packages/data-provider/dist /app/packages/data-provider/dist
+COPY --from=data-schemas-build /app/packages/data-schemas/dist /app/packages/data-schemas/dist
+COPY --from=admin-package-build /app/packages/librechat-admin/dist /app/packages/librechat-admin/dist
+ENV NODE_OPTIONS="--max-old-space-size=2048"
 RUN npm run build
 
 # Client build
@@ -77,7 +82,8 @@ FROM base AS client-build
 WORKDIR /app/client
 COPY client ./
 COPY --from=data-provider-build /app/packages/data-provider/dist /app/packages/data-provider/dist
-COPY --from=client-lib-build /app/packages/client/dist /app/packages/client/dist
+COPY --from=client-package-build /app/packages/client/dist /app/packages/client/dist
+COPY --from=client-package-build /app/packages/client/src /app/packages/client/src
 ENV NODE_OPTIONS="--max-old-space-size=2048"
 RUN npm run build
 

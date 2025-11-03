@@ -1,6 +1,6 @@
 /**
  * Custom Extensions Mount Point
- * Handles mounting of all custom modules for GovGPT
+ * Handles mounting of all custom modules for soev.ai
  */
 
 const path = require('path');

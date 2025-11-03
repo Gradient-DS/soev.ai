@@ -1,7 +1,7 @@
 import path from 'path';
 
-export const GOVGPT_ROOT: string = (() => {
-  const envRoot = process.env.GOVGPT_ROOT;
+export const SOEVAI_ROOT: string = (() => {
+  const envRoot = process.env.SOEVAI_ROOT;
   if (envRoot && path.isAbsolute(envRoot)) {
     return envRoot;
   }
@@ -11,5 +11,5 @@ export const GOVGPT_ROOT: string = (() => {
 })();
 
 export const resolveFromRoot = (...segments: string[]): string => {
-  return path.join(GOVGPT_ROOT, ...segments);
+  return path.join(SOEVAI_ROOT, ...segments);
 }; 

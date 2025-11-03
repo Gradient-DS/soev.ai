@@ -24,7 +24,7 @@ interface UseAdminConfig {
 }
 
 /**
- * React hook for interacting with the GovGPT Admin plugin config endpoints.
+ * React hook for interacting with the soev.ai Admin plugin config endpoints.
  *
  * GET  /admin/config          → fetch overrides
  * POST /admin/config          → { key, value }  (update single path)

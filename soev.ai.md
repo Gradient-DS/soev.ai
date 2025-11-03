@@ -1,12 +1,12 @@
 _public_
 
-# GovAI / LibreChat – quick run cheatsheet
+# soev.ai / LibreChat – quick run cheatsheet
 
 For every mode below you need **two tiny setup steps first** – they are identical in all cases:
 
 ```bash
 # 1  Environment file
-cp govai.env.example .env          # used by both compose and local dev
+cp soevai.env.example .env          # used by both compose and local dev
 
 # 2  Generated but empty YAML overlays – tracked by .gitignore
 cp librechat.merged.example.yaml librechat.merged.yaml     # ← stays empty on first run
@@ -48,7 +48,7 @@ Mounts declared in `docker-compose.prod.yml` map the two YAML files as writable 
 
 ---
 
-That’s all – choose the mode that fits your workflow, ensure the two env vars (`CONFIG_PATH`, `LIBRECHAT_TAG`) and an AI key are present, and LibreChat / GovAI is ready to chat and embed documents.
+That’s all – choose the mode that fits your workflow, ensure the two env vars (`CONFIG_PATH`, `LIBRECHAT_TAG`) and an AI key are present, and LibreChat / soev.ai is ready to chat and embed documents.
 
 Probably running at http://localhost:3080 if you did not change the config.
 
@@ -72,7 +72,7 @@ Then, in your working tree:
 npm i
 npm run build:data-provider && npm run build:data-schemas && npm run build:api
 
-# build the GovAI admin package & admin frontend
+# build the soev.ai admin package & admin frontend
 cd packages/librechat-admin && npm run build
 cd ../../admin-frontend       && npm run build
 cd ..                         # back to repo root
@@ -112,7 +112,7 @@ docker exec -it LibreChat-API /bin/sh -c "cd .. && npm run create-user"
 ## Project Structure
 
 ```
-GovAI/
+soev.ai/
 ├── api/                    # LibreChat backend (Express)
 ├── client/                 # Main user-facing React app
 ├── admin-frontend/         # React admin dashboard
@@ -128,7 +128,7 @@ GovAI/
 ├── docker-compose.prod.yml
 ├── .env.example            # Environment template
 ├── librechat.yaml          # Base runtime config
-└── GOVAI.md               # This quick-start guide
+└── soev.ai.md               # This quick-start guide
 ```
 
 ### Why three “admin” pieces?

@@ -9,7 +9,7 @@ import AdminConfig from '../models/AdminConfig';
 const PROJECT_ROOT = resolveFromRoot();
 
 const BASE_PATH = process.env.BASE_CONFIG_PATH || path.join(PROJECT_ROOT, 'librechat.yaml');
-const MERGED_PATH = path.join(PROJECT_ROOT, 'librechat.merged.yaml');
+const MERGED_PATH = path.join(PROJECT_ROOT, 'librechat.soev.ai.yaml');
 
 async function ensureDbConnection(): Promise<void> {
   if (mongoose.connection.readyState === 1) return;

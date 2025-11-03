@@ -1,7 +1,7 @@
 {
-  "name": "@govgpt/librechat-admin",
+  "name": "@soev.ai/librechat-admin",
   "version": "1.0.0",
-  "description": "GovGPT Admin Panel Plugin for LibreChat",
+  "description": "soev.ai Admin Panel Plugin for LibreChat",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
