@@ -49,6 +49,9 @@ services:
       CHECK_BALANCE: true
       START_BALANCE: 2000000
       ALLOW_SHARED_LINKS: false
+      
+      # UbiOps Configuration
+      UBIOPS_KEY: ${UBIOPS_KEY}
 
       ENDPOINTS: ${ENDPOINTS}
     volumes:
