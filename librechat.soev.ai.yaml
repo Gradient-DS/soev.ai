@@ -368,23 +368,29 @@ includedTools:
   - __none__
 
 webSearch:
-  searchProvider: "serper"
-  scraperType: "firecrawl"
-  # searxngInstanceUrl: "${SEARXNG_INSTANCE_URL}"
-  # searxngApiKey: "${SEARXNG_API_KEY}"
-  # firecrawlApiUrl: "${FIRECRAWL_API_URL}"
+  searchProvider: "searxng"
+  searxngInstanceUrl: "${SEARXNG_INSTANCE_URL}"
+  
+  scraperProvider: "firecrawl"
+  firecrawlApiUrl: "${FIRECRAWL_API_URL}"
   firecrawlApiKey: "${FIRECRAWL_API_KEY}"
-    
-  # Scraper timeout configuration (in milliseconds)
-  scraperTimeout: 30000       # Increased timeout for better reliability
-  topResults: 3
-  numResults: 3
-  # Firecrawl optimization options
+  scraperTimeout: 30000
+  
+  # Reranker configuration (Jina-compatible)
+  rerankerType: "jina"
+  jinaApiUrl: "${JINA_API_URL}"
+  jinaApiKey: "not-needed-for-local"
+  
+  # Search and scraping configuration
+  topResults: 5          # Get 5 search results from SearXNG
+  numResults: 3          # Scrape top 3 results
+  
+  # Firecrawl options
   firecrawlOptions:
-    timeout: 30000            # Increased timeout to match scraperTimeout
+    timeout: 30000
     waitFor: 2000
     blockAds: true
     onlyMainContent: true
     removeBase64Images: true
-
+  
   safeSearch: 1
