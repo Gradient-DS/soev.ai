@@ -15,7 +15,7 @@ cp librechat.example.yaml librechat.yaml
 ```
 
 Now open `.env` and set at minimum:
-
+ 
 ```dotenv
 # core runtime
 CONFIG_PATH="librechat.merged.yaml"
