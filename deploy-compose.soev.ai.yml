@@ -40,6 +40,7 @@ services:
       FIRECRAWL_API_URL: ${FIRECRAWL_API_URL:-http://10.0.0.2:3002}
       FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-default-local-key}
       JINA_API_URL: ${JINA_API_URL:-http://10.0.0.2:8001/v1}
+      JINA_API_KEY: ${JINA_API_KEY:-local-proxy-key}
       
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
       ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-false}
