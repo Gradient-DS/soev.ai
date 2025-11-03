@@ -379,7 +379,7 @@ webSearch:
   # Reranker configuration (Jina-compatible)
   rerankerType: "jina"
   jinaApiUrl: "${JINA_API_URL}"
-  jinaApiKey: "not-needed-for-local"
+  jinaApiKey: "${JINA_API_KEY}"
   
   # Search and scraping configuration
   topResults: 5          # Get 5 search results from SearXNG
