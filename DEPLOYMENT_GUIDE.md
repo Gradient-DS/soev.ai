@@ -362,8 +362,8 @@ CREDS_IV=<openssl-rand-hex-8>
 MEILI_MASTER_KEY=<openssl-rand-hex-32>
 
 # Domain Configuration
-DOMAIN_CLIENT=https://yourdomain.com
-DOMAIN_SERVER=https://yourdomain.com
+DOMAIN_CLIENT=https://kwink.soev.ai
+DOMAIN_SERVER=https://kwink.soev.ai
 APP_TITLE=soev.ai
 
 # Registration & Login
@@ -372,9 +372,9 @@ ALLOW_UNVERIFIED_EMAIL_LOGIN=false
 ALLOW_EMAIL_LOGIN=true
 
 # Scraper VM URLs (IMPORTANT - use actual Scraper VM IP)
-SEARXNG_URL=http://<SCRAPER_VM_IP>:8080
-FIRECRAWL_API_URL=http://<SCRAPER_VM_IP>:3002
-JINA_API_URL=http://<SCRAPER_VM_IP>:8001
+SEARXNG_INSTANCE_URL=http://100.74.0.20:8080
+FIRECRAWL_API_URL=http://100.74.0.20:3002
+JINA_API_URL=http://100.74.0.20:8001
 
 # API Keys from Scraper VM
 FIRECRAWL_API_KEY=<same-as-scraper-vm>
@@ -455,39 +455,34 @@ sudo mkdir -p /srv/soevai/letsencrypt-log
 sudo chmod -R 755 /srv/soevai
 ```
 
-#### Step 2: Configure Nginx for Initial HTTP-Only Mode
+#### Step 2: Initial ACME Bootstrap
 
-First, you need to configure nginx to serve HTTP and handle ACME challenges before obtaining certificates.
-
-Check that `client/nginx.conf` has an HTTP server block for ACME challenges:
-
-```nginx
-server {
-    listen 80;
-    server_name yourdomain.com www.yourdomain.com;
-
-    # ACME challenge location for Let's Encrypt
-    location /.well-known/acme-challenge/ {
-        root /var/www/certbot;
-    }
-
-    # Redirect all other HTTP traffic to HTTPS (after cert is obtained)
-    location / {
-        return 301 https://$host$request_uri;
-    }
-}
-```
-
-#### Step 3: Start Services in HTTP-Only Mode
+For the first-time setup, we'll use a minimal nginx config to obtain the certificate:
 
 ```bash
 cd /opt/soev-ai
 
+# Backup the production nginx.conf
+cp client/nginx.conf client/nginx.conf.production
+
+# Temporarily use the ACME-only config
+cp client/nginx-acme.conf client/nginx.conf
+
+# Replace the placeholder with your domain
+sed -i 's/SERVER_NAME_PLACEHOLDER/kwink.soev.ai/g' client/nginx.conf
+```
+
+#### Step 3: Start Nginx for ACME Challenge
+
+```bash
 # Load environment variables
 source .env
 
-# Start only the client (nginx) and certbot services first
+# Start nginx and certbot services only
 docker compose -f deploy-compose.soev.ai.yml up -d client certbot
+
+# Check nginx is running
+docker compose -f deploy-compose.soev.ai.yml ps client
 ```
 
 #### Step 4: Obtain SSL Certificate
@@ -500,11 +495,19 @@ docker compose -f deploy-compose.soev.ai.yml run --rm certbot certonly \
   --email your-email@example.com \
   --agree-tos \
   --no-eff-email \
-  -d yourdomain.com \
-  -d www.yourdomain.com
+  -d kwink.soev.ai
+
+# Check that certificates were created
+sudo ls -la /srv/soevai/letsencrypt/live/kwink.soev.ai/
+
+# You should see:
+# - cert.pem
+# - chain.pem
+# - fullchain.pem
+# - privkey.pem
 ```
 
-**Alternative: Using standalone mode (if you stop nginx first):**
+**Alternative: Using standalone mode:**
 ```bash
 # Stop nginx temporarily
 docker compose -f deploy-compose.soev.ai.yml stop client
@@ -516,70 +519,29 @@ docker compose -f deploy-compose.soev.ai.yml run --rm certbot certonly \
   --email your-email@example.com \
   --agree-tos \
   --no-eff-email \
-  -d yourdomain.com \
-  -d www.yourdomain.com
-
-# Start nginx again
-docker compose -f deploy-compose.soev.ai.yml up -d client
+  -d kwink.soev.ai
 ```
 
-#### Step 5: Verify Certificate Files
+#### Step 5: Switch to Production Nginx Config
 
 ```bash
-# Check that certificates were created
-sudo ls -la /srv/soevai/letsencrypt/live/yourdomain.com/
+# Restore the production nginx config (with SSL)
+cp client/nginx.conf.production client/nginx.conf
 
-# You should see:
-# - cert.pem
-# - chain.pem
-# - fullchain.pem
-# - privkey.pem
-```
-
-#### Step 6: Update Nginx for HTTPS
-
-Ensure your `client/nginx.conf` has the HTTPS server block configured:
-
-```nginx
-server {
-    listen 443 ssl http2;
-    server_name yourdomain.com www.yourdomain.com;
-
-    ssl_certificate /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
-
-    # SSL configuration
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-    ssl_prefer_server_ciphers on;
-
-    # Proxy to API
-    location /api {
-        proxy_pass http://api:3080/api;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-    }
-
-    # Serve static files
-    location / {
-        root /usr/share/nginx/html;
-        index index.html;
-        try_files $uri $uri/ /index.html;
-    }
-}
-```
-
-#### Step 7: Restart Nginx
-
-```bash
-# Restart nginx to apply SSL configuration
+# Restart nginx to load SSL configuration
 docker compose -f deploy-compose.soev.ai.yml restart client
+
+# Check nginx logs
+docker logs nginx-soevai -f
+```
+
+#### Step 6: Verify HTTPS is Working
+
+```bash
+# Test HTTPS
+curl -I https://kwink.soev.ai/
+
+# Should return 200 OK with SSL
 ```
 
 #### Automatic Renewal
@@ -621,17 +583,17 @@ docker compose -f deploy-compose.soev.ai.yml ps
 
 ```bash
 # Check API health
-curl https://yourdomain.com/api/health
+curl https://kwink.soev.ai/api/health
 
 # Check if scraper services are accessible from Web App VM
-docker exec -it librechat_api curl http://<SCRAPER_VM_IP>:8080/search?q=test
-docker exec -it librechat_api curl http://<SCRAPER_VM_IP>:3002/health
-docker exec -it librechat_api curl http://<SCRAPER_VM_IP>:8001/health
+docker exec -it librechat_api curl http://100.74.0.20:8080/search?q=test
+docker exec -it librechat_api curl http://100.74.0.20:3002/health
+docker exec -it librechat_api curl http://100.74.0.20:8001/health
 ```
 
 ### 3.2 Test Web Search in UI
 
-1. Log into https://yourdomain.com
+1. Log into https://kwink.soev.ai
 2. Start a new conversation
 3. Enable "Web Search" toggle
 4. Ask a question
