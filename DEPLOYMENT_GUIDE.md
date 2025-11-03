@@ -489,10 +489,11 @@ docker compose -f deploy-compose.soev.ai.yml ps client
 
 ```bash
 # Obtain certificate using certbot container
-docker compose -f deploy-compose.soev.ai.yml run --rm certbot certonly \
+docker compose -f deploy-compose.soev.ai.yml run --rm --entrypoint="" certbot \
+  certbot certonly \
   --webroot \
   --webroot-path=/var/www/certbot \
-  --email your-email@example.com \
+  --email lex@gradient-ds.com \
   --agree-tos \
   --no-eff-email \
   -d kwink.soev.ai
