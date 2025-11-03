@@ -260,6 +260,7 @@ endpoints:
     - name: 'Nebul'
       apiKey: '${NEBUL_API_KEY}'
       baseURL: 'https://api.chat.nebul.io/v1'
+      dropParams: ['tool_choice'] 
       models:
         default:
           - 'gpt-oss-120b-nim'
@@ -272,20 +273,30 @@ endpoints:
       modelDisplayLabel: 'Nebul'
       titleConvo: true
       titleModel: 'gpt-oss-120b-nim'
-      # addParams:
-      #   tool_choice: 'required'
 
-    # - name: 'UbiOps llama'
-    #   apiKey: '${UBIOPS_KEY_LLAMA}'
-    #   baseURL: 'https://api.intermax.ubiops.com/v2.1/projects/gradient-ds-proxy/openai-compatible/v1'
-    #   models:
-    #     default:
-    #       - 'ubiops-deployment/llama-3-3//llama-3-3'
-    #     fetch: false
-    #   titleConvo: true
-    #   titleModel: 'ubiops-deployment/llama-3-3//llama-3-3'
-    #   addParams:
-    #     tool_choice: 'required'
+    - name: 'UbiOps 2'
+      apiKey: '${UBIOPS_KEY_2}'
+      baseURL: 'https://api.intermax.ubiops.com/v2.1/projects/gradient-ds-proxy-2/openai-compatible/v1'
+      models:
+        default:
+          - 'ubiops-deployment/gpt-oss-120b/v1/openai/gpt-oss-120b'
+        fetch: false
+      titleConvo: true
+      titleModel: 'ubiops-deployment/gpt-oss-120b/v1/openai/gpt-oss-120b'
+      addParams:
+        tool_choice: 'required'
+
+    - name: 'UbiOps 1'
+      apiKey: '${UBIOPS_KEY_1}'
+      baseURL: 'https://api.intermax.ubiops.com/v2.1/projects/gradient-ds-proxy/openai-compatible/v1'
+      models:
+        default:
+          - 'ubiops-deployment/gpt-oss-120b/v1/openai/gpt-oss-120b'
+        fetch: false
+      titleConvo: true
+      titleModel: 'ubiops-deployment/gpt-oss-120b/v1/openai/gpt-oss-120b'
+      addParams:
+        tool_choice: 'required'
 
     # - name: 'UbiOps GPT'
     #   apiKey: '${UBIOPS_KEY_GPT}'

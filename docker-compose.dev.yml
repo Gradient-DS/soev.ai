@@ -35,7 +35,7 @@ services:
       - "5432:5432"
 
   rag_api:
-    image: ghcr.io/danny-avila/librechat-rag-api-dev-lite:latest
+    image: ghcr.io/danny-avila/librechat-rag-api-dev:latest
     container_name: dev-rag-api
     restart: unless-stopped
     depends_on:
@@ -43,10 +43,10 @@ services:
     environment:
       DB_HOST: vectordb
       RAG_PORT: 8000
-      OPENAI_API_KEY: ${RAG_OPENAI_API_KEY}
+      # EMBEDDINGS_PROVIDER: openai
+      OPENAI_API_KEY: ${UBIOPS_RAG_1}
       OPENAI_BASE_URL: ${RAG_OPENAI_BASE_URL}
       EMBEDDINGS_MODEL: ${RAG_EMBEDDINGS_MODEL}
-      # EMBEDDINGS_PROVIDER: openai
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       RAG_CHECK_EMBEDDING_CTX_LENGTH: false
