@@ -103,17 +103,25 @@ services:
     restart: always
     volumes:
       - pgdata2:/var/lib/postgresql/data
+
+
   rag_api:
-    image: ghcr.io/danny-avila/librechat-rag-api-dev-lite:latest
-    environment:
-      - DB_HOST=vectordb
-      - RAG_PORT=${RAG_PORT:-8000}
-      - OPENAI_API_KEY=${RAG_OPENAI_API_KEY}
-      - JWT_SECRET=${JWT_SECRET}
-      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
-    restart: always
+    image: ghcr.io/danny-avila/librechat-rag-api-dev:latest
+    container_name: dev-rag-api
+    restart: unless-stopped
     depends_on:
       - vectordb
+    environment:
+      DB_HOST: vectordb
+      RAG_PORT: 8000
+      OPENAI_API_KEY: ${UBIOPS_RAG}
+      OPENAI_BASE_URL: ${RAG_OPENAI_BASE_URL}
+      EMBEDDINGS_MODEL: ${RAG_EMBEDDINGS_MODEL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      RAG_CHECK_EMBEDDING_CTX_LENGTH: false
+    env_file:
+      - .env
 
   certbot:
     image: certbot/certbot:latest
