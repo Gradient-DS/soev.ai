@@ -145,20 +145,5 @@ services:
     cap_drop:
       - ALL
 
-  gkn-mcp-server:
-    image: ghcr.io/gradient-ds/gkn-mcp:0.1.1
-    environment:
-      - GKN_API_KEY=${GKN_API_KEY}
-      - GKN_BASE_URL=https://gradient.groenkennisnet.nl
-      - HTTP_PORT=8000
-      - HTTP_HOST=0.0.0.0
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "pgrep", "-f", "python server.py"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
 volumes:
   pgdata2:
