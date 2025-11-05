@@ -73,10 +73,14 @@ export function loadWebSearchConfig(
   const jinaApiUrl = config?.jinaApiUrl ?? '${JINA_API_URL}';
   const cohereApiKey = config?.cohereApiKey ?? '${COHERE_API_KEY}';
   const safeSearch = config?.safeSearch ?? SafeSearchTypes.MODERATE;
+  const topResults = config?.topResults ?? 2;
+  const numResults = config?.numResults ?? 4;
 
   return {
     ...config,
     safeSearch,
+    topResults,
+    numResults,
     jinaApiKey,
     jinaApiUrl,
     cohereApiKey,

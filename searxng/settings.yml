@@ -251,14 +251,25 @@ plugins:
 
 # Configuration of the "Hostnames plugin":
 #
-# hostnames:
+hostnames:
 #   replace:
 #     '(.*\.)?youtube\.com$': 'yt.example.com'
 #     '(.*\.)?youtu\.be$': 'yt.example.com'
 #     '(.*\.)?reddit\.com$': 'teddit.example.com'
 #     '(.*\.)?redd\.it$': 'teddit.example.com'
 #     '(www\.)?twitter\.com$': 'nitter.example.com'
-#   remove:
+  remove:
+    - '.*\.cn$'
+    - '.*\.中国$'
+    - '.*\.公司$'
+    - '.*\.网络$'
+    - '(.*\.)?baidu\.com$'
+    - '(.*\.)?zhihu\.com$'
+    - '(.*\.)?baidu\.cn$'
+    - '(.*\.)?qq\.com$'
+    - '(.*\.)?sogou\.com$'
+    - '(.*\.)?sohu\.com$'
+    - '(.*\.)?163\.com$'
 #     - '(.*\.)?facebook.com$'
 #   low_priority:
 #     - '(.*\.)?google(\..*)?$'

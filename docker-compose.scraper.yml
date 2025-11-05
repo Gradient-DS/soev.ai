@@ -10,6 +10,8 @@ services:
     networks:
       - scraper_network
     command: redis-server --bind 0.0.0.0
+    ports:
+      - "0.0.0.0:6379:6379" 
     deploy:
       resources:
         limits:
@@ -90,13 +92,15 @@ services:
     restart: unless-stopped
     ports:
       - "8001:8000"  # Exposed for external access from LibreChat VM
+    environment:
+      - MAX_DOCUMENTS=50
     networks:
       - scraper_network
     deploy:
       resources:
         limits:
-          memory: 4G
-          cpus: '2.0'
+          memory: 2G
+          cpus: '1.0'
 
   searxng:
     image: searxng/searxng:latest

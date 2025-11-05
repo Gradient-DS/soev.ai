@@ -18,23 +18,8 @@ interface:
   # Terms of service
   termsOfService:
     # externalUrl: 'https://gradient-ds.com/'
-    openNewTab: true
-    modalAcceptance: true
-    modalTitle: "Gebruiksvoorwaarden voor soev.ai (Demo)"
-    modalContent: |
-      ### soev.ai Demo – Fair use & geen vertrouwelijke data
-
-      Deze demo wordt “as is” aangeboden, alleen voor evaluatiedoeleinden. We kunnen de demo op elk moment wijzigen of intrekken.
-
-      Door door te gaan, ga je akkoord met het volgende:
-      - Gebruik de dienst eerlijk en rechtmatig (fair use).
-      - **Upload géén vertrouwelijke, persoonlijke of gevoelige gegevens** (geen PII, bedrijfsgeheimen of vertrouwelijke documenten).
-      - Uitvoer kan onjuist zijn; gebruik niet voor kritieke besluiten.
-      - Geen garanties of aansprakelijkheid.
-
-      Wil je echte/sensitieve data verwerken? Neem contact op voor een productieaccount.
-
-      Door de demo te gebruiken, accepteer je deze voorwaarden.
+    openNewTab: false
+    modalAcceptance: false
   endpointsMenu: true
   modelSelect: true
   parameters: false
@@ -288,8 +273,18 @@ endpoints:
       modelDisplayLabel: 'soev.ai'
       titleConvo: true
       titleModel: 'ubiops-deployment/gpt-oss-120b/v1/openai/gpt-oss-120b'
-      addParams:
-        tool_choice: 'required'
+      
+    - name: 'Open Source'
+      apiKey: '${HF_KEY}'
+      baseURL: 'https://router.huggingface.co/v1'
+      models:
+        default:
+          - 'openai/gpt-oss-120b:groq'
+        fetch: false
+      modelDisplayLabel: 'soev.ai'
+      titleConvo: true
+      titleModel: 'openai/gpt-oss-120b:groq'
+
     # - name: 'UbiOps GPT'
     #   apiKey: '${UBIOPS_KEY_GPT}'
     #   baseURL: 'https://api.ubiops.com/v2.1/projects/gen-ai/openai-compatible/v1'
@@ -376,14 +371,14 @@ webSearch:
   firecrawlApiKey: "${FIRECRAWL_API_KEY}"
   scraperTimeout: 30000
   
-  # Reranker configuration (Jina-compatible)
+  # Reranker configuration (Jina-compatible local proxy)
   rerankerType: "jina"
   jinaApiUrl: "${JINA_API_URL}"
   jinaApiKey: "${JINA_API_KEY}"
   
   # Search and scraping configuration
-  topResults: 5          # Get 5 search results from SearXNG
-  numResults: 3          # Scrape top 3 results
+  topResults: 2          # Scrape top 2 results
+  numResults: 4          # Get 4 search results from SearXNG
   
   # Firecrawl options
   firecrawlOptions:

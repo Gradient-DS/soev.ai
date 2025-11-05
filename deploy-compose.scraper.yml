@@ -93,6 +93,7 @@ services:
       - "0.0.0.0:8001:8000"
     environment:
       - JINA_API_KEY=${JINA_API_KEY:-local-proxy-key}
+      - MAX_DOCUMENTS=50
     networks:
       - scraper_network
     deploy:
