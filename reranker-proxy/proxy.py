@@ -21,6 +21,9 @@ app = Flask(__name__)
 # Maximum documents to process per request (configurable via env var)
 MAX_DOCUMENTS = int(os.environ.get('MAX_DOCUMENTS', '50'))
 
+# Default maximum results to return
+DEFAULT_TOP_N = 3
+
 # Load a lightweight cross-encoder for reranking
 # Using ms-marco-MiniLM for faster performance with good quality
 try:
@@ -65,7 +68,8 @@ def rerank():
             
         query = data.get('query', '')
         documents = data.get('documents', [])
-        top_n = data.get('top_n', len(documents))
+        # top_n = data.get('top_n', DEFAULT_TOP_N)
+        top_n = 3 # TODO: Make this configurable from the librechat config
         return_documents = data.get('return_documents', True)
         model_name = data.get('model', 'jina-reranker-v1-base-en')
         

@@ -46,9 +46,9 @@ interface:
 #    language: "auto"    # "auto" or an ISO 639-1 language code (e.g. en)
 #    size: "normal"      # Options: "normal", "compact", "flexible", or "invisible"
 
-# Example Registration Object Structure (optional)
-# registration:
-#   socialLogins: ['github', 'google', 'discord', 'openid', 'facebook', 'apple', 'saml']
+# Registration configuration
+registration:
+  socialLogins: ['openid']
   # allowedDomains:
   #   - "gradient-ds.com"
 
