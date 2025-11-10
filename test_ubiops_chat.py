@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-api_key = os.getenv('UBIOPS_KEY_1')
+api_key = os.getenv('UBIOPS_KEY')
 base_url = 'https://api.intermax.ubiops.com/v2.1/projects/gradient-ds-proxy/openai-compatible/v1'
 chat_model = 'ubiops-deployment/gpt-oss-120b/v1/openai/gpt-oss-120b'
 
@@ -24,7 +24,7 @@ payload = {
     "messages": [
         {"role": "user", "content": "Say hello in exactly 3 words"}
     ],
-    "max_tokens": 10
+    "max_tokens": 500
 }
 
 headers = {
@@ -111,4 +111,3 @@ except Exception as e:
     print(f"❌ ERROR: {e}")
     import traceback
     traceback.print_exc()
-
