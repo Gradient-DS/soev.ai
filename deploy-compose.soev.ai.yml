@@ -16,7 +16,6 @@ services:
     - "host.docker.internal:host-gateway"
     environment:
       SOEVAI_ROOT: /app
-      ADMIN_OVERLAY_PATH: /app/admin-overrides.yaml
       CONFIG_PATH: /app/librechat.soev.ai.yaml
       BASE_CONFIG_PATH: /app/soev.ai.yaml
       HOST: 0.0.0.0
@@ -56,7 +55,6 @@ services:
     volumes:
       - ./soev.ai.yaml:/app/soev.ai.yaml:ro
       - ./librechat.soev.ai.yaml:/app/librechat.soev.ai.yaml:rw
-      - ./admin-overrides.yaml:/app/admin-overrides.yaml:rw
       - ./images:/app/client/public/images
       - ./uploads:/app/uploads
       - ./logs:/app/api/logs
