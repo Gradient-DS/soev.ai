@@ -109,7 +109,19 @@ fileConfig:
         - "text/csv"
         - "application/json"
     
-    soev.ai:
+    soev.ai-intermax:
+      disabled: false
+      fileLimit: 10
+      supportedMimeTypes:
+        - "application/pdf"
+        - "text/plain"
+        - "text/markdown"
+        - "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        - "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        - "text/csv"
+        - "application/json"
+    
+    soev.ai-nebul:
       disabled: false
       fileLimit: 10
       supportedMimeTypes:
