@@ -1,6 +1,6 @@
 services:
   librechat_api:
-    image: ghcr.io/gradient-ds/kwink-soevai-api:${LIBRECHAT_TAG:-latest}
+    image: ghcr.io/gradient-ds/neo-soevai-api:${LIBRECHAT_TAG:-latest}
     # build:
     #   context: .
     #   dockerfile: Dockerfile.soev.ai.multi
@@ -71,7 +71,7 @@ services:
       DB_HOST: vectordb
       RAG_PORT: 8000
       # EMBEDDINGS_PROVIDER: openai
-      OPENAI_API_KEY: ${UBIOPS_RAG}
+      OPENAI_API_KEY: ${UBIOPS_RAG_1}
       OPENAI_BASE_URL: ${RAG_OPENAI_BASE_URL}
       EMBEDDINGS_MODEL: ${RAG_EMBEDDINGS_MODEL}
       JWT_SECRET: ${JWT_SECRET}
@@ -81,6 +81,8 @@ services:
       - .env
     ports:
       - "8000:8000"
+  
+
 volumes:
   pgdata2:
   # ollama: 
