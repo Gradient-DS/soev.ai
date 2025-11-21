@@ -1,20 +1,10 @@
 const { logger } = require('@librechat/data-schemas');
-<<<<<<< HEAD
-const { SerpAPI } = require('@langchain/community/tools/serpapi');
-const { Calculator } = require('@langchain/community/tools/calculator');
-const { patchAxiosForJina } = require('./jinaProxy');
-const { EnvVar, createCodeExecutionTool, createSearchTool } = require('@librechat/agents');
-
-// Patch axios to redirect Jina API calls to local proxy
-patchAxiosForJina();
-=======
 const {
   EnvVar,
   Calculator,
   createSearchTool,
   createCodeExecutionTool,
 } = require('@librechat/agents');
->>>>>>> upstream/main
 const {
   checkAccess,
   createSafeUser,
