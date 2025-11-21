@@ -112,18 +112,11 @@ const AttachFileMenu = ({
       const items: MenuItemProps[] = [];
 
       const currentProvider = provider || endpoint;
-<<<<<<< HEAD
       const supportsImages = endpointFileConfig?.supportedMimeTypes?.some(
         (mimeType) => mimeType.toString().includes('image'),
       ) ?? true;
 
       if (supportsImages && isDocumentSupportedProvider(endpointType || currentProvider)) {
-=======
-      if (
-        isDocumentSupportedProvider(endpointType) ||
-        isDocumentSupportedProvider(currentProvider)
-      ) {
->>>>>>> upstream/main
         items.push({
           label: localize('com_ui_upload_provider'),
           onClick: () => {
