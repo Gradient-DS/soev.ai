@@ -10,8 +10,8 @@ services:
     labels:
       - "soevai.restart=enabled"
     environment:
-      CONFIG_PATH: /app/librechat.soev.ai.yaml
-      BASE_CONFIG_PATH: /app/librechat.soev.ai.yaml
+      CONFIG_PATH: /app/librechat.soev.ai.neo.yaml
+      BASE_CONFIG_PATH: /app/librechat.soev.ai.neo.yaml
       HOST: 0.0.0.0
       PORT: 3080
       MONGO_URI: mongodb://mongodb:27017/LibreChat
@@ -25,7 +25,7 @@ services:
       - .env
     volumes:
       - ./librechat.yaml:/app/librechat.yaml:ro
-      - ./librechat.soev.ai.yaml:/app/librechat.soev.ai.yaml:rw
+      - ./librechat.soev.ai.neo.yaml:/app/librechat.soev.ai.neo.yaml:rw
       - ./admin-overrides.yaml:/app/admin-overrides.yaml:rw
       - ./uploads:/app/uploads
       - ./logs:/app/api/logs

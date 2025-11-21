@@ -1,11 +1,10 @@
 const { logger } = require('@librechat/data-schemas');
-const { SerpAPI } = require('@langchain/community/tools/serpapi');
-const { Calculator } = require('@langchain/community/tools/calculator');
-const { patchAxiosForJina } = require('./jinaProxy');
-const { EnvVar, createCodeExecutionTool, createSearchTool } = require('@librechat/agents');
-
-// Patch axios to redirect Jina API calls to local proxy
-patchAxiosForJina();
+const {
+  EnvVar,
+  Calculator,
+  createSearchTool,
+  createCodeExecutionTool,
+} = require('@librechat/agents');
 const {
   checkAccess,
   createSafeUser,
@@ -184,19 +183,6 @@ const loadTools = async ({
   };
 
   const customConstructors = {
-    serpapi: async (_toolContextMap) => {
-      const authFields = getAuthFields('serpapi');
-      let envVar = authFields[0] ?? '';
-      let apiKey = process.env[envVar];
-      if (!apiKey) {
-        apiKey = await getUserPluginAuthValue(user, envVar);
-      }
-      return new SerpAPI(apiKey, {
-        location: 'Austin,Texas,United States',
-        hl: 'en',
-        gl: 'us',
-      });
-    },
     youtube: async (_toolContextMap) => {
       const authFields = getAuthFields('youtube');
       const authValues = await loadAuthValues({ userId: user, authFields });
@@ -255,7 +241,6 @@ const loadTools = async ({
     flux: imageGenOptions,
     dalle: imageGenOptions,
     'stable-diffusion': imageGenOptions,
-    serpapi: { location: 'Austin,Texas,United States', hl: 'en', gl: 'us' },
   };
 
   /** @type {Record<string, string>} */
@@ -603,7 +588,7 @@ const loadTools = async ({
         }
         if (!availableTools) {
           try {
-            availableTools = await getMCPServerTools(serverName);
+            availableTools = await getMCPServerTools(safeUser.id, serverName);
           } catch (error) {
             logger.error(`Error fetching available tools for MCP server ${serverName}:`, error);
           }
