@@ -30,13 +30,7 @@ import {
   mergeFileConfig,
   megabyte,
   isAssistantsEndpoint,
-<<<<<<< HEAD
-  EToolResources,
-  Constants,
-  Tools,
-=======
   getEndpointFileConfig,
->>>>>>> upstream/main
   type TFile,
 } from 'librechat-data-provider';
 import { useFileMapContext, useChatContext } from '~/Providers';
@@ -194,11 +188,7 @@ export default function DataTable<TData, TValue>({ columns, data }: DataTablePro
         metadata: fileData.metadata,
       });
     },
-<<<<<<< HEAD
-    [addFile, fileMap, conversation, localize, showToast, fileConfig.endpoints, setEphemeralAgent],
-=======
     [addFile, fileMap, conversation, localize, showToast, fileConfig],
->>>>>>> upstream/main
   );
 
   const filenameFilter = table.getColumn('filename')?.getFilterValue() as string;
