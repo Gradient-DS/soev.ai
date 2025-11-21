@@ -1,10 +1,10 @@
 services:
   librechat_api:
-    # image: ghcr.io/gradient-ds/soevai-api:${LIBRECHAT_TAG:-latest}
-    build:
-      context: .
-      dockerfile: Dockerfile.soev.ai.multi
-      target: api-build
+    image: ghcr.io/gradient-ds/kwink-soevai-api:${LIBRECHAT_TAG:-latest}
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile.soev.ai.multi
+    #   target: api-build
     container_name: librechat_api
     restart: unless-stopped
     labels:
@@ -63,31 +63,24 @@ services:
 
   rag_api:
     image: ghcr.io/danny-avila/librechat-rag-api-dev:latest
-    container_name: prod-rag-api
+    container_name: dev-rag-api
     restart: unless-stopped
     depends_on:
       - vectordb
-      # - ollama
     environment:
       DB_HOST: vectordb
       RAG_PORT: 8000
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      # OLLAMA_HOST: http://ollama:11434
+      # EMBEDDINGS_PROVIDER: openai
+      OPENAI_API_KEY: ${UBIOPS_RAG}
+      OPENAI_BASE_URL: ${RAG_OPENAI_BASE_URL}
+      EMBEDDINGS_MODEL: ${RAG_EMBEDDINGS_MODEL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      RAG_CHECK_EMBEDDING_CTX_LENGTH: false
     env_file:
       - .env
-
-  # # Ollama – text-embedding model server
-  # ollama:
-  #   image: ollama/ollama:latest
-  #   container_name: prod-ollama
-  #   restart: unless-stopped
-  #   ports:
-  #     - "11434:11434"
-  #   volumes:
-  #     - ollama:/root/.ollama
-  #   environment:
-  #     - OLLAMA_DISABLE_TELEMETRY=1
-
+    ports:
+      - "8000:8000"
 volumes:
   pgdata2:
   # ollama: 

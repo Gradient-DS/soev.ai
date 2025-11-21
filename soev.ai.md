@@ -15,7 +15,7 @@ cp librechat.example.yaml librechat.yaml
 ```
 
 Now open `.env` and set at minimum:
-
+ 
 ```dotenv
 # core runtime
 CONFIG_PATH="librechat.merged.yaml"
@@ -105,7 +105,7 @@ The stack watches `admin-overrides.yaml`; saving settings in the Admin Panel rew
 npm run create-user
 
 **production**
-docker exec -it LibreChat-API /bin/sh -c "cd .. && npm run create-user"
+docker exec -it librechat_api /bin/sh -c "cd .. && npm run create-user"
 
 ---
 

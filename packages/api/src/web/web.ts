@@ -197,6 +197,8 @@ export async function loadWebSearchAuth({
   authResult.scraperTimeout =
     webSearchConfig?.scraperTimeout ?? webSearchConfig?.firecrawlOptions?.timeout ?? 7500;
   authResult.firecrawlOptions = webSearchConfig?.firecrawlOptions;
+  authResult.topResults = webSearchConfig?.topResults;
+  authResult.numResults = webSearchConfig?.numResults;
 
   return {
     authTypes,

@@ -18,36 +18,22 @@ interface:
   # Terms of service
   termsOfService:
     # externalUrl: 'https://gradient-ds.com/'
-    openNewTab: true
-    modalAcceptance: true
-    modalTitle: "Gebruiksvoorwaarden voor soev.ai (Demo)"
-    modalContent: |
-      ### soev.ai Demo – Fair use & geen vertrouwelijke data
-
-      Deze demo wordt “as is” aangeboden, alleen voor evaluatiedoeleinden. We kunnen de demo op elk moment wijzigen of intrekken.
-
-      Door door te gaan, ga je akkoord met het volgende:
-      - Gebruik de dienst eerlijk en rechtmatig (fair use).
-      - **Upload géén vertrouwelijke, persoonlijke of gevoelige gegevens** (geen PII, bedrijfsgeheimen of vertrouwelijke documenten).
-      - Uitvoer kan onjuist zijn; gebruik niet voor kritieke besluiten.
-      - Geen garanties of aansprakelijkheid.
-
-      Wil je echte/sensitieve data verwerken? Neem contact op voor een productieaccount.
-
-      Door de demo te gebruiken, accepteer je deze voorwaarden.
+    openNewTab: false
+    modalAcceptance: false
   endpointsMenu: true
   modelSelect: true
   parameters: false
   sidePanel: true
   presets: false
-  prompts: true
+  prompts: false
   bookmarks: true
   multiConvo: false
-  agents: true
+  agents: false
   fileCitations: true
   memories: false
   fileSearch: true
   webSearch: true
+  runCode: false
   marketplace: 
     use: false
   # Temporary chat retention period in hours (default: 720, min: 1, max: 8760)
@@ -60,9 +46,9 @@ interface:
 #    language: "auto"    # "auto" or an ISO 639-1 language code (e.g. en)
 #    size: "normal"      # Options: "normal", "compact", "flexible", or "invisible"
 
-# Example Registration Object Structure (optional)
-# registration:
-#   socialLogins: ['github', 'google', 'discord', 'openid', 'facebook', 'apple', 'saml']
+# Registration configuration
+registration:
+  socialLogins: ['openid']
   # allowedDomains:
   #   - "gradient-ds.com"
 
@@ -122,36 +108,60 @@ fileConfig:
         - "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         - "text/csv"
         - "application/json"
+    
+    soev.ai-intermax:
+      disabled: false
+      fileLimit: 10
+      supportedMimeTypes:
+        - "application/pdf"
+        - "text/plain"
+        - "text/markdown"
+        - "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        - "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        - "text/csv"
+        - "application/json"
+    
+    soev.ai-nebul:
+      disabled: false
+      fileLimit: 10
+      supportedMimeTypes:
+        - "application/pdf"
+        - "text/plain"
+        - "text/markdown"
+        - "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        - "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        - "text/csv"
+        - "application/json"
 
 
     # If you use a named custom provider (e.g., 'Open Source'), add it here too with the same list.
 # MCP Servers Configuration
-mcpServers:
-  # Your localhost MCP server with API key authentication
-  Landbouw & Natuur:
-    type: streamable-http
-    url: http://localhost:3434/mcp
-    headers:
-      Authorization: "Bearer ${GKN_MCP_KEY}"
-    timeout: 60000
-    chatMenu: true  # Show in chat dropdown (set to false to only use with agents)
-    # Custom instructions provided here (overrides server-provided instructions)
-    serverInstructions: |
-      When using the gkn_search tool, synthesize the results into a clear, comprehensive answer in the language of the question.
+# mcpServers:
+#   # Your localhost MCP server with API key authentication
+#   Landbouw & Natuur:
+#     type: streamable-http
+#     url: http://localhost:3434/mcp
+#     headers:
+#       Authorization: "Bearer ${GKN_MCP_KEY}"
+#     timeout: 60000
+#     chatMenu: true  # Show in chat dropdown (set to false to only use with agents)
+#     # Custom instructions provided here (overrides server-provided instructions)
+#     serverInstructions: |
+#       When using the gkn_search tool, synthesize the results into a clear, comprehensive answer in the language of the question.
       
-      **CITE SEARCH RESULTS:**
-      Use the EXACT anchor markers provided in the search results. The results include citation markers like \ue202turn0file0.
-      Copy these markers into your response immediately after statements derived from that source:
-      - Single source: "Veenweidegebieden zijn weidegebieden met een hoge waterstand \ue202turn0file1."
-      - Multiple sources: "Dit wordt ondersteund door meerdere studies \ue200\ue202turn0file0\ue202turn0file1\ue201."
+#       **CITE SEARCH RESULTS:**
+#       Use the EXACT anchor markers provided in the search results. The results include citation markers like \ue202turn0file0.
+#       Copy these markers into your response immediately after statements derived from that source:
+#       - Single source: "Veenweidegebieden zijn weidegebieden met een hoge waterstand \ue202turn0file1."
+#       - Multiple sources: "Dit wordt ondersteund door meerdere studies \ue200\ue202turn0file0\ue202turn0file1\ue201."
       
-      **Critical rules:**
-      - Copy the \ue202turn0file{number} markers EXACTLY as shown in the search results
-      - Place markers immediately after sentences (with a space before)
-      - Mention the source title/filename in your text before the citation marker
-      - Do NOT use brackets 【】, markdown links, or footnotes
+#       **Critical rules:**
+#       - Copy the \ue202turn0file{number} markers EXACTLY as shown in the search results
+#       - Place markers immediately after sentences (with a space before)
+#       - Mention the source title/filename in your text before the citation marker
+#       - Do NOT use brackets 【】, markdown links, or footnotes
       
-      Synthesize information naturally while preserving these citation markers.
+#       Synthesize information naturally while preserving these citation markers.
   # RegelRecht:
   #   type: streamable-http
   #   url: http://localhost:8008/mcp/
@@ -246,57 +256,41 @@ endpoints:
     #   # NOTE: For Mistral, it is necessary to drop the following parameters or you will encounter a 422 Error:
     #   dropParams: ['stop', 'user', 'frequency_penalty', 'presence_penalty']
       
-    - name: 'Open Source'
-      apiKey: '${HF_KEY}'
-      baseURL: 'https://router.huggingface.co/v1'
-      models:
-        default:
-          - 'openai/gpt-oss-120b:groq'
-        fetch: false
-      modelDisplayLabel: 'soev.ai'
-      titleConvo: true
-      titleModel: 'openai/gpt-oss-120b:groq'
 
-    - name: 'Nebul'
-      apiKey: '${NEBUL_API_KEY}'
-      baseURL: 'https://api.chat.nebul.io/v1'
-      dropParams: ['tool_choice'] 
-      models:
-        default:
-          - 'gpt-oss-120b-nim'
-          - 'meta-llama/Llama-4-Maverick-17B-128E-Instruct'
-          - 'mistralai/Mistral-Small-3.2-24B-Instruct-2506'
-          - 'deepseek-ai/DeepSeek-R1'
-          - 'Qwen/Qwen3-VL-235B-A22B-Thinking'
-          - 'deepseek-ai/DeepSeek-V3.1'
-        fetch: true
-      modelDisplayLabel: 'Nebul'
-      titleConvo: true
-      titleModel: 'gpt-oss-120b-nim'
 
-    - name: 'UbiOps 2'
-      apiKey: '${UBIOPS_KEY_2}'
+    - name: 'soev.ai-intermax'
+      apiKey: '${UBIOPS_KEY}'
       baseURL: 'https://api.intermax.ubiops.com/v2.1/projects/gradient-ds-proxy-2/openai-compatible/v1'
       models:
         default:
           - 'ubiops-deployment/gpt-oss-120b/v1/openai/gpt-oss-120b'
         fetch: false
+      modelDisplayLabel: 'soev.ai-intermax'
       titleConvo: true
       titleModel: 'ubiops-deployment/gpt-oss-120b/v1/openai/gpt-oss-120b'
-      addParams:
-        tool_choice: 'required'
 
-    - name: 'UbiOps 1'
-      apiKey: '${UBIOPS_KEY_1}'
-      baseURL: 'https://api.intermax.ubiops.com/v2.1/projects/gradient-ds-proxy/openai-compatible/v1'
+
+    - name: 'soev.ai-nebul'
+      apiKey: '${NEBUL_API_KEY}'
+      baseURL: 'https://api.chat.nebul.io/v1'
+      dropParams: ['tool_choice'] 
       models:
         default:
-          - 'ubiops-deployment/gpt-oss-120b/v1/openai/gpt-oss-120b'
-        fetch: false
+          - 'gpt-oss-120b'
+      modelDisplayLabel: 'soev.ai-nebul'
       titleConvo: true
-      titleModel: 'ubiops-deployment/gpt-oss-120b/v1/openai/gpt-oss-120b'
-      addParams:
-        tool_choice: 'required'
+      titleModel: 'gpt-oss-120b'
+      
+    # - name: 'Open Source'
+    #   apiKey: '${HF_KEY}'
+    #   baseURL: 'https://router.huggingface.co/v1'
+    #   models:
+    #     default:
+    #       - 'openai/gpt-oss-120b:groq'
+    #     fetch: false
+    #   modelDisplayLabel: 'soev.ai'
+    #   titleConvo: true
+    #   titleModel: 'openai/gpt-oss-120b:groq'
 
     # - name: 'UbiOps GPT'
     #   apiKey: '${UBIOPS_KEY_GPT}'
@@ -364,37 +358,41 @@ endpoints:
     # - name: 'OpenRouter'
     #   # For `apiKey` and `
   agents:
-  #   # (optional) Default recursion depth for agents, defaults to 25
-  #   recursionLimit: 50
-  #   # (optional) Max recursion depth for agents, defaults to 25
-  #   maxRecursionLimit: 100
-  #   # (optional) Disable the builder interface for agents
     disableBuilder: false
-  #   # (optional) Agent Capabilities available to all users. Omit the ones you wish to exclude. Defaults to list below.
     capabilities: ["file_search", "web_search", "tools", "chain"]
+    # File citation settings
+    minRelevanceScore: 0.01       # Lower threshold to show more results (default: 0.45)
+    maxCitations: 50              # Maximum total citations (increased from 30)
+    maxCitationsPerFile: 10       # Max citations per file (increased from 5)
 
 
 includedTools:
   - __none__
 
 webSearch:
-  searchProvider: "serper"
-  scraperType: "firecrawl"
-  # searxngInstanceUrl: "${SEARXNG_INSTANCE_URL}"
-  # searxngApiKey: "${SEARXNG_API_KEY}"
-  # firecrawlApiUrl: "${FIRECRAWL_API_URL}"
+  searchProvider: "searxng"
+  searxngInstanceUrl: "${SEARXNG_INSTANCE_URL}"
+  
+  scraperProvider: "firecrawl"
+  firecrawlApiUrl: "${FIRECRAWL_API_URL}"
   firecrawlApiKey: "${FIRECRAWL_API_KEY}"
-    
-  # Scraper timeout configuration (in milliseconds)
-  scraperTimeout: 30000       # Increased timeout for better reliability
-  topResults: 3
-  numResults: 3
-  # Firecrawl optimization options
+  scraperTimeout: 30000
+  
+  # Reranker configuration (Jina-compatible local proxy)
+  rerankerType: "jina"
+  jinaApiUrl: "${JINA_API_URL}"
+  jinaApiKey: "${JINA_API_KEY}"
+  
+  # Search and scraping configuration
+  topResults: 2          # Scrape top 2 results
+  numResults: 4          # Get 4 search results from SearXNG
+  
+  # Firecrawl options
   firecrawlOptions:
-    timeout: 30000            # Increased timeout to match scraperTimeout
+    timeout: 30000
     waitFor: 2000
     blockAds: true
     onlyMainContent: true
     removeBase64Images: true
-
+  
   safeSearch: 1

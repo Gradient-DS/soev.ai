@@ -32,7 +32,7 @@ brand:
 
 search:
   # Filter results. 0: None, 1: Moderate, 2: Strict
-  safe_search: 0
+  safe_search: 1
   # Existing autocomplete backends: "360search", "baidu", "brave", "dbpedia", "duckduckgo", "google", "yandex",
   # "mwmbl", "naver", "seznam", "sogou", "startpage", "stract", "swisscows", "quark", "qwant", "wikipedia" -
   # leave blank to turn it off by default.
@@ -101,6 +101,7 @@ server:
   image_proxy: false
   # 1.0 and 1.1 are supported
   http_protocol_version: "1.0"
+  
   # POST queries are more secure as they don't show up in history but may cause
   # problems when using Firefox containers.
   # Is overwritten by ${SEARXNG_METHOD}
@@ -250,14 +251,25 @@ plugins:
 
 # Configuration of the "Hostnames plugin":
 #
-# hostnames:
+hostnames:
 #   replace:
 #     '(.*\.)?youtube\.com$': 'yt.example.com'
 #     '(.*\.)?youtu\.be$': 'yt.example.com'
 #     '(.*\.)?reddit\.com$': 'teddit.example.com'
 #     '(.*\.)?redd\.it$': 'teddit.example.com'
 #     '(www\.)?twitter\.com$': 'nitter.example.com'
-#   remove:
+  remove:
+    - '.*\.cn$'
+    - '.*\.中国$'
+    - '.*\.公司$'
+    - '.*\.网络$'
+    - '(.*\.)?baidu\.com$'
+    - '(.*\.)?zhihu\.com$'
+    - '(.*\.)?baidu\.cn$'
+    - '(.*\.)?qq\.com$'
+    - '(.*\.)?sogou\.com$'
+    - '(.*\.)?sohu\.com$'
+    - '(.*\.)?163\.com$'
 #     - '(.*\.)?facebook.com$'
 #   low_priority:
 #     - '(.*\.)?google(\..*)?$'

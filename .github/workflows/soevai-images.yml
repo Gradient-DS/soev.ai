@@ -5,10 +5,15 @@ on:
     branches:
       - main
       - 'feat/**'
+
+env:
+  # Change this to your GitHub username or organization
+  REGISTRY_ORG: ${{ github.repository_owner }}
+  IMAGE_NAME: kwink-soevai-api
       
 permissions:
-    contents: read
-    packages: write
+  contents: read
+  packages: write
 
 jobs:
   build:
@@ -25,6 +30,10 @@ jobs:
         run: |
           SAFE_REF=${GITHUB_REF_NAME//\//-}
           echo "safe_ref=$SAFE_REF" >> $GITHUB_OUTPUT
+          
+          # Convert repository owner to lowercase for Docker compatibility
+          LOWERCASE_ORG=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "lowercase_org=$LOWERCASE_ORG" >> $GITHUB_OUTPUT
 
       - name: Log in to GHCR
         uses: docker/login-action@v2
@@ -42,6 +51,9 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ghcr.io/gradient-ds/soevai-api:${{ github.sha }}
-            ghcr.io/gradient-ds/soevai-api:${{ steps.vars.outputs.safe_ref }}
-            ${{ github.ref == 'refs/heads/main' && 'ghcr.io/gradient-ds/soevai-api:latest' || '' }}
+            ghcr.io/${{ steps.vars.outputs.lowercase_org }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ghcr.io/${{ steps.vars.outputs.lowercase_org }}/${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.safe_ref }}
+            ${{ github.ref == 'refs/heads/main' && format('ghcr.io/{0}/{1}:latest', steps.vars.outputs.lowercase_org, env.IMAGE_NAME) || '' }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.description=Kwink soev.ai LibreChat API

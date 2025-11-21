@@ -17,6 +17,7 @@ import { Endpoint, SelectedValues } from '~/common';
  */
 const HARD_CODED_MODEL_ALIASES: Record<string, string> = {
   'openai/gpt-oss-120b:groq': 'soev.ai/gpt-oss-120b',
+  'ubiops-deployment/gpt-oss-120b/v1/openai/gpt-oss-120b': 'gpt-oss-120b',
 };
 
 export function aliasModelId(modelId: string): string {

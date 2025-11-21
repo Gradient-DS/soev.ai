@@ -268,8 +268,10 @@ class AgentClient extends BaseClient {
       : false;
     if (hasAttachedFiles && hasFileSearchTool) {
       const biasInstruction = [
-        'When files are attached, first call the file_search tool to retrieve the most relevant passages.',
-        'Use the retrieved quotes to draft the answer and include citation anchors as instructed.',
+        'When files are attached, ALWAYS call the file_search tool first to retrieve the most relevant passages.',
+        'Call file_search MULTIPLE times with different queries to gather comprehensive information from various sections.',
+        'Use the retrieved quotes to draft your answer and include citation anchors as instructed.',
+        'Provide rich citations: use multiple references per paragraph when information comes from different sources.',
       ].join(' ');
       systemContent = [biasInstruction, systemContent].filter(Boolean).join('\n');
       logger.debug('[AgentClient] Prepended file_search bias instruction');

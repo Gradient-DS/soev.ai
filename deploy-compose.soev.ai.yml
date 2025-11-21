@@ -1,10 +1,8 @@
 services:
   api:
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile.multi
-    #   target: api-build
-    image: ghcr.io/gradient-ds/soevai-api:${LIBRECHAT_TAG:-latest}
+    # Update the image name to match your GitHub Container Registry
+    # Format: ghcr.io/<your-github-username>/kwink-soevai-api:latest
+    image: ${LIBRECHAT_IMAGE:-ghcr.io/gradient-ds/kwink-soevai-api:latest}
     container_name: librechat_api
     ports:
       - 3080:3080
@@ -33,11 +31,18 @@ services:
       DOMAIN_SERVER: ${DOMAIN_SERVER:-https://gradient-testing.nl}
       TRUST_PROXY: "1"
       TRUST_REVERSE_PROXY: true
-      APP_TITLE: ${APP_TITLE:-soev.ai}
-      SERPER_API_KEY: ${SERPER_API_KEY}
-      WEBSEARCH_SEARCH_PROVIDER: ${WEBSEARCH_SEARCH_PROVIDER}
-      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY}
-      COHERE_API_KEY: ${COHERE_API_KEY}
+      APP_TITLE: ${APP_TITLE:-kwink.soev.ai}
+      
+      # Web Search Configuration (External VM)
+      # Set these in .env file with the IP/hostname of the scraper VM
+      SEARXNG_INSTANCE_URL: ${SEARXNG_INSTANCE_URL:-http://10.0.0.2:8080}
+      SEARXNG_API_KEY: ${SEARXNG_API_KEY:-not-needed}
+      FIRECRAWL_API_URL: ${FIRECRAWL_API_URL:-http://10.0.0.2:3002}
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-default-local-key}
+      FIRECRAWL_VERSION: ${FIRECRAWL_VERSION:-v1}
+      JINA_API_URL: ${JINA_API_URL:-http://10.0.0.2:8001/v1}
+      JINA_API_KEY: ${JINA_API_KEY:-local-proxy-key}
+      
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
       ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-false}
       ALLOW_UNVERIFIED_EMAIL_LOGIN: ${ALLOW_UNVERIFIED_EMAIL_LOGIN:-false}
@@ -46,10 +51,21 @@ services:
       CHECK_BALANCE: true
       START_BALANCE: 2000000
       ALLOW_SHARED_LINKS: false
-      # OpenAI API Key
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      HF_KEY: ${HF_KEY}
-      RAG_OPENAI_API_KEY: ${RAG_OPENAI_API_KEY}
+      
+      # Social Login Configuration
+      ALLOW_SOCIAL_LOGIN: ${ALLOW_SOCIAL_LOGIN:-true}
+      OPENID_CLIENT_ID: ${OPENID_CLIENT_ID}
+      OPENID_CLIENT_SECRET: ${OPENID_CLIENT_SECRET}
+      OPENID_ISSUER: ${OPENID_ISSUER}
+      OPENID_SESSION_SECRET: ${OPENID_SESSION_SECRET}
+      OPENID_CALLBACK_URL: ${OPENID_CALLBACK_URL}
+      OPENID_SCOPE: ${OPENID_SCOPE:-openid profile email}
+      OPENID_BUTTON_LABEL: ${OPENID_BUTTON_LABEL:-Login met Microsoft}
+      OPENID_REQUIRED_ROLE_TOKEN_KIND: ${OPENID_REQUIRED_ROLE_TOKEN_KIND:-id}
+      
+      # UbiOps Configuration
+      UBIOPS_KEY: ${UBIOPS_KEY}
+      NEBUL_API_KEY: ${NEBUL_API_KEY}
 
       ENDPOINTS: ${ENDPOINTS}
     volumes:
@@ -103,17 +119,25 @@ services:
     restart: always
     volumes:
       - pgdata2:/var/lib/postgresql/data
+
+
   rag_api:
-    image: ghcr.io/danny-avila/librechat-rag-api-dev-lite:latest
-    environment:
-      - DB_HOST=vectordb
-      - RAG_PORT=${RAG_PORT:-8000}
-      - OPENAI_API_KEY=${RAG_OPENAI_API_KEY}
-      - JWT_SECRET=${JWT_SECRET}
-      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
-    restart: always
+    image: ghcr.io/danny-avila/librechat-rag-api-dev:latest
+    container_name: dev-rag-api
+    restart: unless-stopped
     depends_on:
       - vectordb
+    environment:
+      DB_HOST: vectordb
+      RAG_PORT: 8000
+      OPENAI_API_KEY: ${UBIOPS_RAG}
+      OPENAI_BASE_URL: ${RAG_OPENAI_BASE_URL}
+      EMBEDDINGS_MODEL: ${RAG_EMBEDDINGS_MODEL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      RAG_CHECK_EMBEDDING_CTX_LENGTH: false
+    env_file:
+      - .env
 
   certbot:
     image: certbot/certbot:latest
@@ -136,21 +160,6 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
-
-  gkn-mcp-server:
-    image: ghcr.io/gradient-ds/gkn-mcp:0.1.1
-    environment:
-      - GKN_API_KEY=${GKN_API_KEY}
-      - GKN_BASE_URL=https://gradient.groenkennisnet.nl
-      - HTTP_PORT=8000
-      - HTTP_HOST=0.0.0.0
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "pgrep", "-f", "python server.py"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
 
 volumes:
   pgdata2:

@@ -117,8 +117,11 @@ const AttachFileMenu = ({
       const items: MenuItemProps[] = [];
 
       const currentProvider = provider || endpoint;
+      const supportsImages = endpointFileConfig?.supportedMimeTypes?.some(
+        (mimeType) => mimeType.toString().includes('image'),
+      ) ?? true;
 
-      if (isDocumentSupportedProvider(currentProvider || endpointType)) {
+      if (supportsImages && isDocumentSupportedProvider(endpointType || currentProvider)) {
         items.push({
           label: localize('com_ui_upload_provider'),
           onClick: () => {
@@ -129,7 +132,7 @@ const AttachFileMenu = ({
           },
           icon: <FileImageIcon className="icon-md" />,
         });
-      } else {
+      } else if (supportsImages) {
         items.push({
           label: localize('com_ui_upload_image_input'),
           onClick: () => {
