@@ -540,7 +540,14 @@ export const interfaceSchema = z
     bookmarks: z.boolean().optional(),
     memories: z.boolean().optional(),
     presets: z.boolean().optional(),
-    prompts: z.boolean().optional(),
+    prompts: z.union([
+      z.boolean(),
+      z.object({
+        use: z.boolean().optional(),
+        create: z.boolean().optional(),
+        sharedGlobal: z.boolean().optional(),
+      }),
+    ]).optional(),
     agents: z.boolean().optional(),
     temporaryChat: z.boolean().optional(),
     temporaryChatRetention: z.number().min(1).max(8760).optional(),

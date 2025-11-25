@@ -254,12 +254,16 @@ export default defineConfig(({ command }) => ({
         warn(warning);
       },
     },
-    chunkSizeWarningLimit: 1500,
+    chunkSizeWarningLimit: 200,
+    terserOptions: {
+      compress: {
+        drop_console: process.env.NODE_ENV === 'production',
+      },
+    },
   },
   resolve: {
     alias: {
       '~': path.join(__dirname, 'src/'),
-      $fonts: path.resolve(__dirname, 'public/fonts'),
       'micromark-extension-math': 'micromark-extension-llm-math',
     },
   },

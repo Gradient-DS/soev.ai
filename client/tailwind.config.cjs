@@ -57,6 +57,9 @@ module.exports = {
         'slide-out-left': 'slide-out-left 300ms cubic-bezier(0.25, 0.1, 0.25, 1)',
         'slide-out-right': 'slide-out-right 300ms cubic-bezier(0.25, 0.1, 0.25, 1)',
       },
+      transitionTimingFunction: {
+        'bounce-out': 'cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+      },
       colors: {
         gray: {
           20: '#ececf1',

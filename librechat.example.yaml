@@ -85,7 +85,14 @@ interface:
   parameters: true
   sidePanel: true
   presets: true
+  # Prompts feature: can be boolean or object with granular permissions
+  # Boolean: enables/disables prompts UI (default: true)
   prompts: true
+  # Object: configure specific permissions for USER role
+  # prompts:
+  #   use: true            # Allow users to use prompts in UI
+  #   create: true         # Allow users to create their own prompts
+  #   sharedGlobal: true   # Allow users to share prompts globally with other users
   bookmarks: true
   multiConvo: true
   agents: true
