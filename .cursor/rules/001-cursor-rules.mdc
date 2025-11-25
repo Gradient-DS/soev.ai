@@ -1,0 +1,74 @@
+---
+description: How to add or edit Cursor rules in our project
+globs: 
+alwaysApply: false
+---
+# Cursor Rules Location
+
+How to add new cursor rules to the project
+
+1. Always place rule files in PROJECT_ROOT/.cursor/rules/:
+    ```
+    .cursor/rules/
+    ├── your-rule-name.mdc
+    ├── another-rule.mdc
+    └── ...
+    ```
+
+2. Follow the naming convention:
+    - Use three-digit numbering prefix:
+      - **001-099**: Core Rules (global/always applied)
+      - **100-199**: Integration Rules (area-specific guides)
+      - **200-299**: Pattern/Role Rules (specific implementation patterns)
+    - Use kebab-case for filenames after the number
+    - Always use .mdc extension
+    - Make names descriptive of the rule's purpose
+    - Example: `210-new-pattern.mdc`
+
+3. Directory structure:
+    ```
+    PROJECT_ROOT/
+    ├── .cursor/
+    │   └── rules/
+    │       ├── 001-swe-guidelines.mdc
+    │       ├── 100-cursor-rules.mdc
+    │       ├── 110-frontend-development.mdc
+    │       ├── 200-backend-auth-pattern.mdc
+    │       └── ...
+    └── ...
+    ```
+
+4. Never place rule files:
+    - In the project root
+    - In subdirectories outside .cursor/rules
+    - In any other location
+
+5. Cursor rules have the following structure:
+
+````
+---
+description: Short description of the rule's purpose
+globs: optional/path/pattern/**/* 
+alwaysApply: false
+---
+# Rule Title
+
+Main content explaining the rule with markdown formatting.
+
+1. Step-by-step instructions
+2. Code examples
+3. Guidelines
+
+Example:
+```typescript
+// Good example
+function goodExample() {
+  // Implementation following guidelines
+}
+
+// Bad example
+function badExample() {
+  // Implementation not following guidelines
+}
+```
+````
