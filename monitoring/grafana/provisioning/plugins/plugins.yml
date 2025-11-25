@@ -1,0 +1,5 @@
+apiVersion: 1
+
+# No plugins to provision by default
+# This file prevents the "failed to read plugin provisioning files" error
+plugins: [] 

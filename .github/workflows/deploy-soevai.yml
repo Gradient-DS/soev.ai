@@ -290,7 +290,7 @@ jobs:
           fqdn=${{ inputs.domain }}
           dir=/home/deploy/soevai
           mkdir -p bundle
-          tar -czf bundle/deploy.tar.gz deploy-compose.soev.ai.yml client/nginx.conf client/nginx-acme.conf client/nginx.tmpl.conf librechat.soev.ai.yaml
+          tar -czf bundle/deploy.tar.gz deploy-compose.soev.ai.yml nginx/nginx-prod.conf nginx/nginx-acme.conf nginx/nginx.tmpl.conf librechat.soev.ai.yaml
           scp -o StrictHostKeyChecking=no -i "${{ steps.ssh.outputs.key_path }}" bundle/deploy.tar.gz deploy@"$ip":/home/deploy/deploy.tar.gz
           {
             printf 'FQDN=%q\n' "$fqdn"
@@ -406,7 +406,7 @@ jobs:
           fi
 
           # 1) ACME bootstrap config (HTTP only)
-          sed "s/SERVER_NAME_PLACEHOLDER/${FQDN}/g" client/nginx-acme.conf > /tmp/nginx-default.conf
+          sed "s/SERVER_NAME_PLACEHOLDER/${FQDN}/g" nginx/nginx-acme.conf > /tmp/nginx-default.conf
 
           # Write in-place instead of docker cp (works with bind mounts)
           docker exec -i nginx-soevai sh -c 'cat > /etc/nginx/conf.d/default.conf' < /tmp/nginx-default.conf
@@ -461,7 +461,7 @@ jobs:
           fi
 
           # 3) Switch to TLS config and reload
-          sed "s/SERVER_NAME_PLACEHOLDER/${FQDN}/g" client/nginx.tmpl.conf > /tmp/nginx-default.conf
+          sed "s/SERVER_NAME_PLACEHOLDER/${FQDN}/g" nginx/nginx.tmpl.conf > /tmp/nginx-default.conf
           docker exec -i nginx-soevai sh -c 'cat > /etc/nginx/conf.d/default.conf' < /tmp/nginx-default.conf
           docker exec nginx-soevai nginx -t
           docker exec nginx-soevai nginx -s reload

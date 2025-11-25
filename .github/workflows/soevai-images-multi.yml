@@ -1,0 +1,137 @@
+name: Build & Push soev.ai Multi-Arch Docker images
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag for the multi-arch image (e.g., v1.0.0, latest)'
+        required: false
+        default: 'multi'
+
+env:
+  REGISTRY_ORG: ${{ github.repository_owner }}
+  IMAGE_NAME: soevai-api
+      
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-amd64:
+    runs-on: ubuntu-latest
+    outputs:
+      lowercase_org: ${{ steps.vars.outputs.lowercase_org }}
+      safe_ref: ${{ steps.vars.outputs.safe_ref }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Set variables
+        id: vars
+        run: |
+          SAFE_REF=${GITHUB_REF_NAME//\//-}
+          echo "safe_ref=$SAFE_REF" >> $GITHUB_OUTPUT
+          LOWERCASE_ORG=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "lowercase_org=$LOWERCASE_ORG" >> $GITHUB_OUTPUT
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push amd64 image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.soev.ai.multi
+          target: api-build
+          push: true
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: |
+            ghcr.io/${{ steps.vars.outputs.lowercase_org }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-amd64
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.description=soev.ai LibreChat API (amd64)
+
+  build-arm64:
+    runs-on: ubuntu-24.04-arm
+    outputs:
+      lowercase_org: ${{ steps.vars.outputs.lowercase_org }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Set variables
+        id: vars
+        run: |
+          LOWERCASE_ORG=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "lowercase_org=$LOWERCASE_ORG" >> $GITHUB_OUTPUT
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push arm64 image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.soev.ai.multi
+          target: api-build
+          push: true
+          platforms: linux/arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: |
+            ghcr.io/${{ steps.vars.outputs.lowercase_org }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-arm64
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.description=soev.ai LibreChat API (arm64)
+
+  merge-manifests:
+    needs: [build-amd64, build-arm64]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and push multi-arch manifest
+        env:
+          LOWERCASE_ORG: ${{ needs.build-amd64.outputs.lowercase_org }}
+          SAFE_REF: ${{ needs.build-amd64.outputs.safe_ref }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          IMAGE_BASE="ghcr.io/${LOWERCASE_ORG}/${{ env.IMAGE_NAME }}"
+          
+          # Create manifest for the custom tag
+          docker buildx imagetools create -t "${IMAGE_BASE}:${TAG}" \
+            "${IMAGE_BASE}:${{ github.sha }}-amd64" \
+            "${IMAGE_BASE}:${{ github.sha }}-arm64"
+          
+          # Also create manifest with branch name
+          docker buildx imagetools create -t "${IMAGE_BASE}:${SAFE_REF}-multi" \
+            "${IMAGE_BASE}:${{ github.sha }}-amd64" \
+            "${IMAGE_BASE}:${{ github.sha }}-arm64"
+          
+          # If on main, also tag as latest-multi
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            docker buildx imagetools create -t "${IMAGE_BASE}:latest-multi" \
+              "${IMAGE_BASE}:${{ github.sha }}-amd64" \
+              "${IMAGE_BASE}:${{ github.sha }}-arm64"
+          fi
+

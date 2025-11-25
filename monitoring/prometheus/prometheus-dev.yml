@@ -1,0 +1,53 @@
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  evaluation_interval: 15s
+
+# Load rules and evaluate them according to the global 'evaluation_interval'.
+rule_files:
+  - "alerts.yml"
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - 'alertmanager:9093'
+      path_prefix: /alertmanager
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['prometheus:9090']
+        labels:
+          environment: 'development'
+
+  # Node Exporter (for host metrics)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          environment: 'development'
+          service: 'node-exporter'
+    scrape_interval: 30s
+
+  # Alertmanager metrics
+  - job_name: 'alertmanager'
+    static_configs:
+      - targets: ['alertmanager:9093']
+        labels:
+          environment: 'development'
+          service: 'alertmanager'
+    scrape_interval: 30s
+
+  # LibreChat Exporter - collects metrics from MongoDB
+  - job_name: 'librechat'
+    scrape_interval: 60s
+    scrape_timeout: 30s
+    static_configs:
+      - targets: ['metrics:8000']
+        labels:
+          environment: 'development'
+          service: 'librechat'

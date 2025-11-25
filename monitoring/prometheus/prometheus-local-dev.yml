@@ -1,0 +1,57 @@
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  evaluation_interval: 15s
+
+# Load rules and evaluate them according to the global 'evaluation_interval'.
+rule_files:
+  - "alerts.yml"
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - 'alertmanager:9093'
+      path_prefix: /
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          environment: 'development'
+
+  # Flask API metrics - running on host machine
+  # Uses host.docker.internal to access host from container (Mac/Windows)
+  # On Linux, you may need to change this to '172.17.0.1:5001' or add extra_hosts to docker-compose
+  # Default Flask port in dev is 5001 (configurable via FLASK_PORT env var)
+  - job_name: 'api'
+    static_configs:
+      - targets: ['host.docker.internal:5001']
+        labels:
+          environment: 'development'
+          service: 'api'
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  # Node Exporter (for host metrics)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          environment: 'development'
+          service: 'node-exporter'
+    scrape_interval: 30s
+
+  # Alertmanager metrics
+  - job_name: 'alertmanager'
+    static_configs:
+      - targets: ['alertmanager:9093']
+        labels:
+          environment: 'development'
+          service: 'alertmanager'
+    scrape_interval: 30s
+

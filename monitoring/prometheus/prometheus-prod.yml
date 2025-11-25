@@ -1,0 +1,54 @@
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  evaluation_interval: 15s
+
+# Load rules and evaluate them according to the global 'evaluation_interval'.
+rule_files:
+  - "alerts.yml"
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - 'alertmanager:9093'
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['prometheus:9090']
+        labels:
+          environment: 'production'
+
+  # Flask API metrics
+  - job_name: 'api'
+    static_configs:
+      - targets: ['api:5002']
+        labels:
+          environment: 'production'
+          service: 'api'
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  # Node Exporter (for host metrics)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          environment: 'production'
+          service: 'node-exporter'
+    scrape_interval: 30s 
+
+
+  # Alertmanager metrics
+  - job_name: 'alertmanager'
+    static_configs:
+      - targets: ['alertmanager:9093']
+        labels:
+          environment: 'production'
+          service: 'alertmanager'
+    metrics_path: '/metrics'
+    scrape_interval: 30s 

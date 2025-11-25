@@ -1,0 +1,184 @@
+---
+description: Main cursor rules index and clean code guidelines for the soev.ai project
+globs: 
+alwaysApply: true
+---
+
+# soev.ai Project Cursor Rules
+
+## Overview
+This project uses context-aware cursor rules to guide AI-assisted development. Rules are automatically applied based on file patterns and project areas.
+
+## Available Rules
+
+Rules are numbered according to the Cursor team's recommended format:
+- **001-099**: Core Rules (global/always applied)
+- **100-199**: Integration Rules (area-specific guides)
+- **200-299**: Pattern/Role Rules (specific implementation patterns)
+
+### Core Rules (001-099)
+
+**001: General Clean Code Guidelines**  
+**File:** `001-swe-guidelines.mdc` (this file)  
+**Scope:** All files (always applied)  
+**Purpose:** Universal coding standards for maintainability and readability
+
+**Key principles:**
+- Use named constants instead of magic numbers
+- Write self-documenting code with meaningful names
+- Keep functions small and single-purpose
+- Follow DRY (Don't Repeat Yourself)
+- Maintain clean structure and proper encapsulation
+- Use comments only for "why", not "what"
+
+### Integration Rules (100-199)
+
+**100: Cursor Rules Guide**  
+**File:** `100-cursor-rules.mdc`  
+**Purpose:** How to add or edit Cursor rules in our project
+
+**110: Frontend Development Guide**  
+**File:** `110-frontend-development.mdc`  
+**Scope:** `frontend/**` (React application)  
+**Purpose:** React/TypeScript development patterns and workflows
+
+**Covers:**
+- Tech stack (React 19, Vite, TanStack Query, Tailwind CSS)
+- Component structure and TypeScript conventions
+- Test-Driven Development (TDD) workflow
+- Accessibility (a11y) requirements
+- Backend API routes and integration
+- Common patterns (data fetching, mutations, streaming)
+
+**Two main workflows:**
+- **Workflow A:** Bug fixes and modifications (Plan → Code → Lint → Test → Loop)
+- **Workflow B:** New features using TDD (Plan → Write Tests → Code → Lint → Test → Loop)
+
+**120: Backend Development Overview**  
+**File:** `120-backend-overview.mdc`  
+**Scope:** `server/**` (Python/Flask API)  
+**Purpose:** Backend API development patterns and architecture
+
+**Overview file covers:**
+- Tech stack (Flask, PostgreSQL, OAuth/OIDC, Prometheus)
+- Project structure and organization
+- Coding conventions and style guide
+- Environment variables and configuration
+- Testing strategy and security practices
+
+### Pattern/Role Rules (200-299)
+
+**Pattern-specific files:**
+- `200-backend-auth-pattern.mdc` - OIDC authentication with login_required decorator
+- `210-backend-config-pattern.mdc` - Configuration management with immutable dataclasses
+- `220-backend-database-pattern.mdc` - Singleton database with mixin classes
+- `230-backend-metrics-pattern.mdc` - Prometheus metrics for monitoring
+- `240-backend-provider-pattern.mdc` - AI provider abstraction and factory pattern
+- `250-backend-routing-pattern.mdc` - Flask blueprints for modular routing
+- `260-backend-service-pattern.mdc` - Service layer for business logic
+- `270-backend-streaming-pattern.mdc` - Generator pattern for SSE streaming
+
+## How to Use These Rules
+
+### For AI/Cursor
+Rules are automatically applied based on file patterns. The AI will:
+- Follow general guidelines for all files
+- Apply frontend-specific rules when working in `frontend/` directory
+- Apply backend-specific rules when working in `server/` directory
+- Combine rules when multiple apply to the same file
+
+### For Developers
+1. **Read the relevant rules** before starting work in a new area
+2. **Follow the workflows** defined in:
+   - `110-frontend-development.mdc` for React/TypeScript work
+   - `120-backend-overview.mdc` for Python/Flask work
+3. **Use as reference** for patterns, conventions, and best practices
+4. **Suggest updates** when you find better approaches or missing guidelines
+
+## Best Coding Practices
+
+### Type Safety
+- Use TypeScript strict mode
+- Avoid `any` - prefer proper types, interfaces, or `unknown`
+- Use Zod for runtime validation of external data
+
+### Testing
+- Write tests first for new features (TDD)
+- Test both happy paths and edge cases
+- Include accessibility tests for UI components
+- Use descriptive test names in snake_case
+
+### Code Organization
+- Separate concerns (features vs reusable components)
+- Keep related code together
+- Use consistent naming conventions
+- Extract repeated logic into hooks or utilities
+
+### Documentation
+- Use JSDoc for complex functions
+- Document "why" not "what"
+- Keep comments at function start, not inline
+- Let code be self-documenting through clear names
+
+### Development Flow
+1. Plan before coding
+2. Run lints after changes (`npm run lint`, `npm run typecheck`)
+3. Run tests to verify (`npm run test:run`)
+4. Fix issues and repeat until clean
+
+## Adding New Rules
+
+When adding new rule files:
+1. Create file in `.cursor/rules/` following the numbering convention:
+   - **001-099**: Core Rules (global/always applied)
+   - **100-199**: Integration Rules (area-specific guides)
+   - **200-299**: Pattern/Role Rules (specific implementation patterns)
+2. Use the `.mdc` file extension (e.g., `210-new-pattern.mdc`)
+3. Add frontmatter with description and globs
+4. Update this file with the new rule
+5. Set `alwaysApply: true` only if needed globally
+6. Use specific glob patterns to target relevant files
+
+---
+
+# Clean Code Guidelines
+
+## Constants Over Magic Numbers
+- Replace hard-coded values with named constants
+- Use descriptive constant names that explain the value's purpose
+- Keep constants at the top of the file or in a dedicated constants file
+
+## Meaningful Names
+- Variables, functions, and classes should reveal their purpose
+- Names should explain why something exists and how it's used
+- Avoid abbreviations unless they're universally understood
+
+## Smart Comments
+- Don't comment on what the code does - make the code self-documenting
+- Use comments to explain why something is done a certain way
+- Document APIs, complex algorithms, and non-obvious side effects
+
+## Single Responsibility
+- Each function should do exactly one thing
+- Functions should be small and focused
+- If a function needs a comment to explain what it does, it should be split
+
+## DRY (Don't Repeat Yourself)
+- Extract repeated code into reusable functions
+- Share common logic through proper abstraction
+- Maintain single sources of truth
+
+## Clean Structure
+- Keep related code together
+- Organize code in a logical hierarchy
+- Use consistent file and folder naming conventions
+
+## Encapsulation
+- Hide implementation details
+- Expose clear interfaces
+- Move nested conditionals into well-named functions
+
+## Code Quality Maintenance
+- Refactor continuously
+- Fix technical debt early
+- Leave code cleaner than you found it

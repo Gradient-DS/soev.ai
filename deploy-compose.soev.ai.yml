@@ -2,7 +2,7 @@ services:
   api:
     # Update the image name to match your GitHub Container Registry
     # Format: ghcr.io/<your-github-username>/kwink-soevai-api:latest
-    image: ${LIBRECHAT_IMAGE:-ghcr.io/gradient-ds/kwink-soevai-api:latest}
+    image: ${LIBRECHAT_IMAGE:-ghcr.io/gradient-ds/soevai-api:latest}
     container_name: librechat_api
     ports:
       - 3080:3080
@@ -85,7 +85,7 @@ services:
       - api
     restart: always
     volumes:
-      - ./client/nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx/nginx-prod.conf:/etc/nginx/conf.d/default.conf
       - /srv/soevai/certbot-www:/var/www/certbot
       - /srv/soevai/letsencrypt:/etc/letsencrypt
   mongodb:

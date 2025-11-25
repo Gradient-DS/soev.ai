@@ -25,7 +25,10 @@ interface:
   parameters: false
   sidePanel: true
   presets: false
-  prompts: false
+  prompts:
+    use: true
+    create: true
+    sharedGlobal: true
   bookmarks: true
   multiConvo: false
   agents: false

@@ -1534,4 +1534,38 @@ describe('updateInterfacePermissions - permissions', () => {
       }),
     });
   });
+
+  it('should handle granular prompts permissions with object syntax', async () => {
+    const config = {
+      interface: {
+        prompts: {
+          use: false,
+          create: true,
+          sharedGlobal: true,
+        },
+      },
+    };
+    const configDefaults = { interface: {} } as TConfigDefaults;
+    const interfaceConfig = await loadDefaultInterface({ config, configDefaults });
+    const appConfig = { config, interfaceConfig } as unknown as AppConfig;
+
+    await updateInterfacePermissions({
+      appConfig,
+      getRoleByName: mockGetRoleByName,
+      updateAccessPermissions: mockUpdateAccessPermissions,
+    });
+
+    const expectedUserPermissions = {
+      [PermissionTypes.PROMPTS]: {
+        [Permissions.USE]: false,
+        [Permissions.CREATE]: true,
+        [Permissions.SHARED_GLOBAL]: true,
+      },
+    };
+
+    const userCall = mockUpdateAccessPermissions.mock.calls.find(
+      (call) => call[0] === SystemRoles.USER,
+    );
+    expect(userCall[1][PermissionTypes.PROMPTS]).toEqual(expectedUserPermissions[PermissionTypes.PROMPTS]);
+  });
 });

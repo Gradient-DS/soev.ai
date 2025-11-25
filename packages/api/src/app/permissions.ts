@@ -46,6 +46,36 @@ function hasExplicitConfig(
   }
 }
 
+/**
+ * Normalizes prompts config value to extract specific permissions
+ */
+function getPromptsConfig(promptsValue: boolean | { use?: boolean; create?: boolean; sharedGlobal?: boolean } | undefined) {
+  if (promptsValue === undefined) {
+    return { use: undefined, create: undefined, sharedGlobal: undefined };
+  }
+  if (typeof promptsValue === 'boolean') {
+    return { use: promptsValue, create: undefined, sharedGlobal: undefined };
+  }
+  return {
+    use: promptsValue.use,
+    create: promptsValue.create,
+    sharedGlobal: promptsValue.sharedGlobal,
+  };
+}
+
+/**
+ * Extracts boolean value from prompts config (handles both boolean and object syntax)
+ */
+function getPromptsUseDefault(promptsValue: boolean | { use?: boolean; create?: boolean; sharedGlobal?: boolean } | undefined): boolean | undefined {
+  if (promptsValue === undefined) {
+    return undefined;
+  }
+  if (typeof promptsValue === 'boolean') {
+    return promptsValue;
+  }
+  return promptsValue.use;
+}
+
 export async function updateInterfacePermissions({
   appConfig,
   getRoleByName,
@@ -90,6 +120,12 @@ export async function updateInterfacePermissions({
   };
 
   const defaults = getConfigDefaults().interface;
+  
+  // Extract prompts config from interface
+  const promptsConfigValue = typeof loadedInterface.prompts === 'object' && loadedInterface.prompts !== null 
+    ? loadedInterface.prompts 
+    : (typeof loadedInterface.prompts === 'boolean' ? loadedInterface.prompts : undefined);
+  const promptsConfig = getPromptsConfig(promptsConfigValue);
 
   // Permission precedence order:
   // 1. Explicit user configuration (from librechat.yaml)
@@ -142,10 +178,30 @@ export async function updateInterfacePermissions({
     const allPermissions: Partial<Record<PermissionTypes, Record<string, boolean | undefined>>> = {
       [PermissionTypes.PROMPTS]: {
         [Permissions.USE]: getPermissionValue(
-          loadedInterface.prompts,
+          promptsConfig.use,
           defaultPerms[PermissionTypes.PROMPTS]?.[Permissions.USE],
-          defaults.prompts,
+          getPromptsUseDefault(defaults.prompts),
         ),
+        ...(promptsConfig.create !== undefined && {
+          [Permissions.CREATE]: getPermissionValue(
+            promptsConfig.create,
+            defaultPerms[PermissionTypes.PROMPTS]?.[Permissions.CREATE],
+            undefined,
+          ),
+        }),
+        ...(promptsConfig.sharedGlobal !== undefined && {
+          [Permissions.SHARED_GLOBAL]: getPermissionValue(
+            promptsConfig.sharedGlobal,
+            defaultPerms[PermissionTypes.PROMPTS]?.[Permissions.SHARED_GLOBAL],
+            undefined,
+          ),
+        }),
+        ...(defaultPerms[PermissionTypes.PROMPTS]?.[Permissions.CREATE] !== undefined && promptsConfig.create === undefined && {
+          [Permissions.CREATE]: defaultPerms[PermissionTypes.PROMPTS][Permissions.CREATE],
+        }),
+        ...(defaultPerms[PermissionTypes.PROMPTS]?.[Permissions.SHARED_GLOBAL] !== undefined && promptsConfig.sharedGlobal === undefined && {
+          [Permissions.SHARED_GLOBAL]: defaultPerms[PermissionTypes.PROMPTS][Permissions.SHARED_GLOBAL],
+        }),
       },
       [PermissionTypes.BOOKMARKS]: {
         [Permissions.USE]: getPermissionValue(

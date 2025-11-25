@@ -1,0 +1,415 @@
+{
+  "id": null,
+  "uid": "soevai-monitoring",
+  "title": "soev.ai Monitoring",
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 2,
+  "refresh": "30s",
+  "time": {"from": "now-1h", "to": "now"},
+  "templating": {
+    "list": [
+      {
+        "name": "model",
+        "type": "query",
+        "label": "Model",
+        "datasource": "Prometheus",
+        "query": "label_values(librechat_messages_per_model_total, model)",
+        "refresh": 1,
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "LibreChat Exporter",
+      "gridPos": {"x": 0, "y": 0, "w": 3, "h": 4},
+      "targets": [
+        {"expr": "up{job=\"librechat\"}", "refId": "A"}
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}}},
+            {"type": "value", "options": {"1": {"text": "UP", "color": "green"}}}
+          ]
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Total Messages",
+      "gridPos": {"x": 3, "y": 0, "w": 3, "h": 4},
+      "targets": [
+        {"expr": "librechat_messages_total", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "type": "stat",
+      "title": "Total Conversations",
+      "gridPos": {"x": 6, "y": 0, "w": 3, "h": 4},
+      "targets": [
+        {"expr": "librechat_conversations_total", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "type": "stat",
+      "title": "Registered Users",
+      "gridPos": {"x": 9, "y": 0, "w": 3, "h": 4},
+      "targets": [
+        {"expr": "librechat_registered_users_total", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "type": "stat",
+      "title": "Active Users",
+      "gridPos": {"x": 12, "y": 0, "w": 3, "h": 4},
+      "targets": [
+        {"expr": "librechat_active_users", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "type": "stat",
+      "title": "Daily Unique Users",
+      "gridPos": {"x": 15, "y": 0, "w": 3, "h": 4},
+      "targets": [
+        {"expr": "librechat_daily_unique_users", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "type": "stat",
+      "title": "Input Tokens",
+      "gridPos": {"x": 18, "y": 0, "w": 3, "h": 4},
+      "targets": [
+        {"expr": "librechat_input_tokens_total", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "type": "stat",
+      "title": "Output Tokens",
+      "gridPos": {"x": 21, "y": 0, "w": 3, "h": 4},
+      "targets": [
+        {"expr": "librechat_output_tokens_total", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "type": "timeseries",
+      "title": "Messages Rate by Model",
+      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 6},
+      "targets": [
+        {"expr": "sum by (model) (rate(librechat_messages_per_model_total{model=~\"$model\"}[5m]) * 3600)", "legendFormat": "{{model}}", "refId": "A"}
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {"drawStyle": "line", "lineInterpolation": "smooth"},
+          "unit": "short"
+        }
+      },
+      "options": {"legend": {"displayMode": "table", "placement": "right"}}
+    },
+    {
+      "type": "timeseries",
+      "title": "Output Tokens by Model",
+      "gridPos": {"x": 12, "y": 4, "w": 12, "h": 6},
+      "targets": [
+        {"expr": "sum by (model) (rate(librechat_output_tokens_per_model_total{model=~\"$model\"}[5m]) * 3600)", "legendFormat": "{{model}}", "refId": "A"}
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {"drawStyle": "line", "lineInterpolation": "smooth"},
+          "unit": "short"
+        }
+      },
+      "options": {"legend": {"displayMode": "table", "placement": "right"}}
+    },
+    {
+      "type": "stat",
+      "title": "Messages (5m)",
+      "gridPos": {"x": 0, "y": 10, "w": 3, "h": 3},
+      "targets": [
+        {"expr": "librechat_messages_5m", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "type": "stat",
+      "title": "Input Tokens (5m)",
+      "gridPos": {"x": 3, "y": 10, "w": 3, "h": 3},
+      "targets": [
+        {"expr": "librechat_input_tokens_5m", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "type": "stat",
+      "title": "Output Tokens (5m)",
+      "gridPos": {"x": 6, "y": 10, "w": 3, "h": 3},
+      "targets": [
+        {"expr": "librechat_output_tokens_5m", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "type": "stat",
+      "title": "Errors (5m)",
+      "gridPos": {"x": 9, "y": 10, "w": 3, "h": 3},
+      "targets": [
+        {"expr": "librechat_error_messages_5m", "refId": "A"}
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "green"},
+              {"value": 1, "color": "red"}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Tool Calls Total",
+      "gridPos": {"x": 12, "y": 10, "w": 3, "h": 3},
+      "targets": [
+        {"expr": "librechat_tool_calls_total", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "type": "stat",
+      "title": "Tool Calls (5m)",
+      "gridPos": {"x": 15, "y": 10, "w": 3, "h": 3},
+      "targets": [
+        {"expr": "librechat_tool_calls_5m", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "type": "stat",
+      "title": "Thumbs Up",
+      "gridPos": {"x": 18, "y": 10, "w": 3, "h": 3},
+      "targets": [
+        {"expr": "librechat_thumbs_up_total", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "fixed", "fixedColor": "green"}}}
+    },
+    {
+      "type": "stat",
+      "title": "Thumbs Down",
+      "gridPos": {"x": 21, "y": 10, "w": 3, "h": 3},
+      "targets": [
+        {"expr": "librechat_thumbs_down_total", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "fixed", "fixedColor": "red"}}}
+    },
+    {
+      "type": "table",
+      "title": "Messages by Model",
+      "gridPos": {"x": 0, "y": 13, "w": 8, "h": 7},
+      "targets": [
+        {
+          "expr": "topk(10, librechat_messages_per_model_total)",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {"Time": true, "__name__": true, "instance": true, "job": true},
+            "renameByName": {"model": "Model", "Value": "Messages"}
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "left"}},
+        "overrides": [{"matcher": {"id": "byName", "options": "Messages"}, "properties": [{"id": "unit", "value": "short"}]}]
+      }
+    },
+    {
+      "type": "table",
+      "title": "Output Tokens by Model",
+      "gridPos": {"x": 8, "y": 13, "w": 8, "h": 7},
+      "targets": [
+        {
+          "expr": "topk(10, librechat_output_tokens_per_model_total)",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {"Time": true, "__name__": true, "instance": true, "job": true},
+            "renameByName": {"model": "Model", "Value": "Output Tokens"}
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "left"}},
+        "overrides": [{"matcher": {"id": "byName", "options": "Output Tokens"}, "properties": [{"id": "unit", "value": "short"}]}]
+      }
+    },
+    {
+      "type": "table",
+      "title": "Tool Usage by Tool",
+      "gridPos": {"x": 16, "y": 13, "w": 8, "h": 7},
+      "targets": [
+        {
+          "expr": "topk(10, librechat_tool_calls_per_tool)",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {"Time": true, "__name__": true, "instance": true, "job": true},
+            "renameByName": {"tool_name": "Tool", "Value": "Calls"}
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "left"}},
+        "overrides": [{"matcher": {"id": "byName", "options": "Calls"}, "properties": [{"id": "unit", "value": "short"}]}]
+      }
+    },
+    {
+      "type": "piechart",
+      "title": "Tool Usage Distribution",
+      "gridPos": {"x": 0, "y": 20, "w": 8, "h": 7},
+      "targets": [
+        {"expr": "librechat_tool_calls_per_tool", "legendFormat": "{{tool_name}}", "refId": "A"}
+      ],
+      "options": {"legend": {"displayMode": "table", "placement": "right"}}
+    },
+    {
+      "type": "bargauge",
+      "title": "Tool Success Rate",
+      "gridPos": {"x": 8, "y": 20, "w": 8, "h": 7},
+      "targets": [
+        {"expr": "librechat_tool_success_rate_per_tool", "legendFormat": "{{tool_name}}", "refId": "A"}
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "red"},
+              {"value": 80, "color": "yellow"},
+              {"value": 95, "color": "green"}
+            ]
+          }
+        }
+      },
+      "options": {"orientation": "horizontal", "displayMode": "gradient"}
+    },
+    {
+      "type": "stat",
+      "title": "Weekly Unique Users",
+      "gridPos": {"x": 16, "y": 20, "w": 4, "h": 3},
+      "targets": [
+        {"expr": "librechat_weekly_unique_users", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "type": "stat",
+      "title": "Monthly Unique Users",
+      "gridPos": {"x": 20, "y": 20, "w": 4, "h": 3},
+      "targets": [
+        {"expr": "librechat_monthly_unique_users", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "type": "stat",
+      "title": "Active Conversations",
+      "gridPos": {"x": 16, "y": 23, "w": 4, "h": 4},
+      "targets": [
+        {"expr": "librechat_active_conversations", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "type": "stat",
+      "title": "Error Messages",
+      "gridPos": {"x": 20, "y": 23, "w": 4, "h": 4},
+      "targets": [
+        {"expr": "librechat_error_messages_total", "refId": "A"}
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "green"},
+              {"value": 1, "color": "yellow"},
+              {"value": 10, "color": "red"}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "System CPU % (node-exporter)",
+      "gridPos": {"x": 0, "y": 27, "w": 12, "h": 6},
+      "targets": [
+        {"expr": "100 - (avg by (instance) (irate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)", "legendFormat": "CPU Used", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}}
+    },
+    {
+      "type": "timeseries",
+      "title": "System Memory % (node-exporter)",
+      "gridPos": {"x": 12, "y": 27, "w": 12, "h": 6},
+      "targets": [
+        {"expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100", "legendFormat": "Mem Used %", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}}
+    },
+    {
+      "type": "timeseries",
+      "title": "Disk Usage % (node-exporter)",
+      "gridPos": {"x": 0, "y": 33, "w": 12, "h": 6},
+      "targets": [
+        {"expr": "max by (mountpoint) ((1 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs|nsfs|cgroup2|proc|sysfs\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs|nsfs|cgroup2|proc|sysfs\"})) * 100)", "legendFormat": "{{mountpoint}}", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}}
+    },
+    {
+      "type": "timeseries",
+      "title": "Network Traffic (node-exporter)",
+      "gridPos": {"x": 12, "y": 33, "w": 12, "h": 6},
+      "targets": [
+        {"expr": "sum(rate(node_network_receive_bytes_total{device!~\"lo\"}[1m]))", "legendFormat": "rx bytes/s", "refId": "A"},
+        {"expr": "sum(rate(node_network_transmit_bytes_total{device!~\"lo\"}[1m]))", "legendFormat": "tx bytes/s", "refId": "B"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "bytes"}}
+    }
+  ]
+}
