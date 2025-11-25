@@ -463,13 +463,11 @@ For the first-time setup, we'll use a minimal nginx config to obtain the certifi
 cd /opt/soev-ai
 
 # Backup the production nginx.conf
-cp client/nginx.conf client/nginx.conf.production
+cp nginx/nginx-prod.conf nginx/nginx-prod.conf.backup
 
-# Temporarily use the ACME-only config
-cp client/nginx-acme.conf client/nginx.conf
-
-# Replace the placeholder with your domain
-sed -i 's/SERVER_NAME_PLACEHOLDER/kwink.soev.ai/g' client/nginx.conf
+# Create a temporary ACME-only config with your domain
+sed 's/SERVER_NAME_PLACEHOLDER/kwink.soev.ai/g' nginx/nginx-acme.conf > nginx/nginx-temp.conf
+cp nginx/nginx-temp.conf nginx/nginx-prod.conf
 ```
 
 #### Step 3: Start Nginx for ACME Challenge
@@ -526,8 +524,8 @@ docker compose -f deploy-compose.soev.ai.yml run --rm certbot certonly \
 #### Step 5: Switch to Production Nginx Config
 
 ```bash
-# Restore the production nginx config (with SSL)
-cp client/nginx.conf.production client/nginx.conf
+# Generate production nginx config with your domain
+sed 's/SERVER_NAME_PLACEHOLDER/kwink.soev.ai/g' nginx/nginx.tmpl.conf > nginx/nginx-prod.conf
 
 # Restart nginx to load SSL configuration
 docker compose -f deploy-compose.soev.ai.yml restart client

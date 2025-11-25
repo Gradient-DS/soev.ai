@@ -1,0 +1,96 @@
+groups:
+- name: infrastructure
+  rules:
+  # High CPU usage
+  - alert: HighCPUUsage
+    expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High CPU usage detected"
+      description: "CPU usage is above 80% for more than 2 minutes on {{ $labels.instance }}"
+
+  # High memory usage
+  - alert: HighMemoryUsage
+    expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High memory usage detected"
+      description: "Memory usage is above 85% for more than 2 minutes on {{ $labels.instance }}"
+
+  # Disk space running low
+  - alert: DiskSpaceLow
+    expr: (1 - (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"})) * 100 > 85
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Disk space running low"
+      description: "Disk usage is above 85% on {{ $labels.instance }} mount {{ $labels.mountpoint }}"
+
+- name: librechat
+  rules:
+  # LibreChat exporter down
+  - alert: LibreChatExporterDown
+    expr: up{job="librechat"} == 0
+    for: 2m
+    labels:
+      severity: critical
+    annotations:
+      summary: "LibreChat metrics exporter is down"
+      description: "The LibreChat exporter has been unreachable for more than 2 minutes"
+
+  # High token usage rate (cost indicator)
+  - alert: HighTokenUsageRate
+    expr: sum(increase(librechat_tokens_total[1h])) > 1000000
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High token usage detected"
+      description: "Token usage exceeded 1M tokens in the last hour"
+
+  # Rapid message increase (potential abuse)
+  - alert: RapidMessageIncrease
+    expr: sum(increase(librechat_messages_total[5m])) > 500
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Rapid message increase detected"
+      description: "More than 500 messages sent in the last 5 minutes - possible abuse"
+
+  # No messages for extended period (service health)
+  - alert: NoRecentMessages
+    expr: sum(increase(librechat_messages_total[30m])) == 0
+    for: 30m
+    labels:
+      severity: warning
+    annotations:
+      summary: "No recent LibreChat messages"
+      description: "No messages have been sent in the last 30 minutes during expected hours"
+
+- name: prometheus
+  rules:
+  # Prometheus configuration reload failed
+  - alert: PrometheusConfigReloadFailed
+    expr: prometheus_config_last_reload_successful == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Prometheus configuration reload failed"
+      description: "Prometheus configuration reload has failed"
+
+  # Prometheus target down
+  - alert: PrometheusTargetDown
+    expr: up == 0
+    for: 1m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Prometheus target down"
+      description: "Target {{ $labels.job }}/{{ $labels.instance }} is down"
