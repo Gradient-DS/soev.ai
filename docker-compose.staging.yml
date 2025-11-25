@@ -266,15 +266,24 @@ services:
     container_name: alertmanager-local
     volumes:
       - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
-      - ./monitoring/alertmanager/slack_webhook:/run/secrets/alertmanager_slack_webhook:ro
       - alertmanager_data:/alertmanager
+    environment:
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+    entrypoint: ["/bin/sh", "-c"]
     command:
-      - '--config.file=/etc/alertmanager/alertmanager.yml'
-      - '--storage.path=/alertmanager'
-      - '--web.external-url=http://localhost/alertmanager'
-      - '--web.route-prefix=/alertmanager'
-      - '--cluster.listen-address='
-      - '--log.level=debug'
+      - |
+        if [ -n "$$SLACK_WEBHOOK_URL" ]; then
+          echo "$$SLACK_WEBHOOK_URL" > /tmp/slack_webhook
+        else
+          echo "https://hooks.slack.com/services/placeholder" > /tmp/slack_webhook
+        fi
+        exec /bin/alertmanager \
+          --config.file=/etc/alertmanager/alertmanager.yml \
+          --storage.path=/alertmanager \
+          --web.external-url=http://localhost/alertmanager \
+          --web.route-prefix=/alertmanager \
+          --cluster.listen-address= \
+          --log.level=debug
     restart: unless-stopped
     depends_on:
       - prometheus
