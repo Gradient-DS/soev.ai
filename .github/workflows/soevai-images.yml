@@ -58,4 +58,4 @@ jobs:
             ${{ github.ref == 'refs/heads/main' && format('ghcr.io/{0}/{1}:latest', steps.vars.outputs.lowercase_org, env.IMAGE_NAME) || '' }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.description=Kwink soev.ai LibreChat API
+            org.opencontainers.image.description=soev.ai LibreChat API

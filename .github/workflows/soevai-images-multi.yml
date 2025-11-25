@@ -57,7 +57,7 @@ jobs:
             ghcr.io/${{ steps.vars.outputs.lowercase_org }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-amd64
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.description=Kwink soev.ai LibreChat API (amd64)
+            org.opencontainers.image.description=soev.ai LibreChat API (amd64)
 
   build-arm64:
     runs-on: ubuntu-24.04-arm
@@ -96,7 +96,7 @@ jobs:
             ghcr.io/${{ steps.vars.outputs.lowercase_org }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-arm64
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.description=Kwink soev.ai LibreChat API (arm64)
+            org.opencontainers.image.description=soev.ai LibreChat API (arm64)
 
   merge-manifests:
     needs: [build-amd64, build-arm64]
