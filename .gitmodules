@@ -1,3 +1,6 @@
 [submodule "firecrawl"]
 	path = firecrawl
 	url = https://github.com/mendableai/firecrawl.git
+[submodule "packages/agents"]
+	path = packages/agents
+	url = https://github.com/gradient-ds/agents.git

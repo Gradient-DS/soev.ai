@@ -121,6 +121,14 @@ function createOnSearchResults(res) {
     context.messageId = runnableConfig.metadata.run_id;
     context.conversationId = runnableConfig.metadata.thread_id;
     context.attachmentName = `${runnableConfig.toolCall.name}_${context.toolCallId}_${nanoid()}`;
+    
+    // DEBUG: Log messageId and turn being used for attachment
+    console.log('[DEBUG search.js] Context values for attachment:', {
+      messageId: context.messageId,
+      conversationId: context.conversationId,
+      turn: data.turn,
+      turnType: typeof data.turn,
+    });
 
     const attachment = buildAttachment(context);
     

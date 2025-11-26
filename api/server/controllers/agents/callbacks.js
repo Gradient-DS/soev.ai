@@ -430,6 +430,25 @@ function createToolEndCallback({ req, res, artifactPromises }) {
       return;
     }
 
+    // LOG: What the model actually receives as tool output (check artifact exists first)
+    if (output.artifact[Tools.web_search]) {
+      console.log('\n========== WEB SEARCH OUTPUT TO MODEL ==========');
+      console.log('[TOOL OUTPUT TO MODEL] output keys:', Object.keys(output));
+      console.log('[TOOL OUTPUT TO MODEL] Content type:', typeof output.content);
+      if (output.content) {
+        console.log('[TOOL OUTPUT TO MODEL] Content length:', 
+          typeof output.content === 'string' ? output.content.length : JSON.stringify(output.content).length
+        );
+        console.log('[TOOL OUTPUT TO MODEL] Full content being sent to model:');
+        console.log('--- START OF MODEL INPUT ---');
+        console.log(typeof output.content === 'string' ? output.content : JSON.stringify(output.content, null, 2));
+        console.log('--- END OF MODEL INPUT ---');
+      } else {
+        console.log('[TOOL OUTPUT TO MODEL] ⚠️ output.content is MISSING or EMPTY!');
+      }
+      console.log('=================================================\n');
+    }
+
     if (output.artifact[Tools.file_search]) {
       artifactPromises.push(
         (async () => {

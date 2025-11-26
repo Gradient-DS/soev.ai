@@ -35,8 +35,22 @@ export function useSearchResultsByTurn(attachments?: TAttachment[]) {
       // Handle web search attachments (existing functionality)
       if (attachment.type === Tools.web_search && attachment[Tools.web_search]) {
         const searchData = attachment[Tools.web_search];
+        // DEBUG: Log turn type check to identify why sources may not appear
+        console.log('[DEBUG useSearchResultsByTurn] Processing web_search attachment:', {
+          turn: searchData.turn,
+          turnType: typeof searchData.turn,
+          isNumber: typeof searchData.turn === 'number',
+          organicCount: searchData.organic?.length,
+          topStoriesCount: searchData.topStories?.length,
+        });
         if (searchData && typeof searchData.turn === 'number') {
           turnMap[searchData.turn.toString()] = searchData;
+          console.log('[DEBUG useSearchResultsByTurn] Added to turnMap:', searchData.turn);
+        } else {
+          console.log('[DEBUG useSearchResultsByTurn] SKIPPED - turn is not a number!', {
+            turnValue: searchData.turn,
+            turnType: typeof searchData.turn,
+          });
         }
       }
 

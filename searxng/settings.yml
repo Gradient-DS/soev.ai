@@ -458,12 +458,12 @@ engines:
     shortcut: aps
     disabled: true
 
-  # Requires Tor
-  - name: ahmia
-    engine: ahmia
-    categories: onions
-    enable_http: true
-    shortcut: ah
+  # Requires Tor - disabled
+  # - name: ahmia
+  #   engine: ahmia
+  #   categories: onions
+  #   enable_http: true
+  #   shortcut: ah
 
   - name: anaconda
     engine: xpath
@@ -675,11 +675,12 @@ engines:
   #   # get your API key from: https://core.ac.uk/api-keys/register/
   #   api_key: 'unset'
 
-  - name: cppreference
-    engine: cppreference
-    shortcut: cpp
-    paging: false
-    disabled: true
+  # cppreference engine was removed from SearxNG
+  # - name: cppreference
+  #   engine: cppreference
+  #   shortcut: cpp
+  #   paging: false
+  #   disabled: true
 
   - name: crossref
     engine: crossref
@@ -1586,6 +1587,10 @@ engines:
     categories: music
     piped_filter: music_songs
     timeout: 3.0
+    frontend_url: https://srv.piped.video
+    backend_url:
+      - https://pipedapi.adminforge.de
+      - https://pipedapi.nosebs.ru
 
   - name: piratebay
     engine: piratebay
@@ -2048,19 +2053,19 @@ engines:
     shortcut: tm
     disabled: true
 
-  # Requires Tor
-  - name: torch
-    engine: xpath
-    paging: true
-    search_url:
-      http://xmh57jrknzkhv6y3ls3ubitzfqnkrwxhopf5aygthi7d6rplyvk3noyd.onion/cgi-bin/omega/omega?P={query}&DEFAULTOP=and
-    results_xpath: //table//tr
-    url_xpath: ./td[2]/a
-    title_xpath: ./td[2]/b
-    content_xpath: ./td[2]/small
-    categories: onions
-    enable_http: true
-    shortcut: tch
+  # Requires Tor - disabled
+  # - name: torch
+  #   engine: xpath
+  #   paging: true
+  #   search_url:
+  #     http://xmh57jrknzkhv6y3ls3ubitzfqnkrwxhopf5aygthi7d6rplyvk3noyd.onion/cgi-bin/omega/omega?P={query}&DEFAULTOP=and
+  #   results_xpath: //table//tr
+  #   url_xpath: ./td[2]/a
+  #   title_xpath: ./td[2]/b
+  #   content_xpath: ./td[2]/small
+  #   categories: onions
+  #   enable_http: true
+  #   shortcut: tch
 
   # TubeArchivist is a self-hosted Youtube archivist software.
   # https://docs.searxng.org/dev/engines/online/tubearchivist.html
@@ -2275,28 +2280,28 @@ engines:
     engine: wikicommons
     shortcut: wc
     categories: images
-    search_type: images
+    wc_search_type: image
     number_of_results: 10
 
   - name: wikicommons.videos
     engine: wikicommons
     shortcut: wcv
     categories: videos
-    search_type: videos
+    wc_search_type: video
     number_of_results: 10
 
   - name: wikicommons.audio
     engine: wikicommons
     shortcut: wca
     categories: music
-    search_type: audio
+    wc_search_type: audio
     number_of_results: 10
 
   - name: wikicommons.files
     engine: wikicommons
     shortcut: wcf
     categories: files
-    search_type: files
+    wc_search_type: file
     number_of_results: 10
 
   - name: wolframalpha
@@ -2485,6 +2490,8 @@ engines:
     network: yacy
     categories: images
     search_type: image
+    base_url:
+      - https://yacy.searchlab.eu
     shortcut: yai
     disabled: true
     # timeout can be reduced in 'local' search mode
@@ -2608,10 +2615,11 @@ engines:
     shortcut: wttr
     timeout: 9.0
 
-  - name: yummly
-    engine: yummly
-    shortcut: yum
-    disabled: true
+  # yummly engine was removed from SearxNG
+  # - name: yummly
+  #   engine: yummly
+  #   shortcut: yum
+  #   disabled: true
 
   - name: brave
     engine: brave
