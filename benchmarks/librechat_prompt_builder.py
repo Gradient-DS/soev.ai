@@ -8,18 +8,47 @@ external benchmarking frameworks like Ragas. It supports four scenarios:
 3. Web Search - Web search context + tool
 4. UI Agent - Full agent with all components
 
+It also supports multi-turn conversations with tool calls and results:
+- format_web_search_result() - Format web search results with citation anchors
+- format_file_search_result() - Format file search results
+- format_mcp_tool_result() - Format MCP tool results
+- create_tool_result_message() - Create tool result messages for message chain
+- create_assistant_tool_call_message() - Create assistant tool call messages
+- build_multi_turn_request() - Build complete multi-turn conversations
+
 Usage:
     from librechat_prompt_builder import LibreChatPromptBuilder
     
     builder = LibreChatPromptBuilder()
+    
+    # Single-turn request
     request = builder.build_request(
         scenario="mcp",
         user_message="What are the radiation protection requirements?",
-        mcp_config={
-            "server_name": "ANVS-IAEA-Wetten",
-            "instructions": "Use citation markers...",
-            "tools": [...]
-        }
+        mcp_servers=[MCPServerConfig(
+            server_name="ANVS-IAEA-Wetten",
+            instructions="Use citation markers...",
+            tools=[...]
+        )]
+    )
+    
+    # Multi-turn with tool results
+    web_result = WebSearchResult(
+        organic=[WebSearchSource(
+            title="Example",
+            link="https://example.com",
+            snippet="Content here..."
+        )]
+    )
+    formatted = builder.format_web_search_result(turn=0, result=web_result)
+    
+    multi_turn = builder.build_multi_turn_request(
+        initial_request=request,
+        turns=[
+            {"tool_calls": [ToolCall(id="call_1", name="web_search", arguments={"query": "test"})]},
+            {"tool_result": {"tool_call_id": "call_1", "content": formatted}},
+            {"assistant": "Based on the search results..."}
+        ]
     )
 """
 
@@ -63,6 +92,58 @@ class WebSearchConfig:
     """Configuration for web search."""
     enabled: bool = True
     custom_rules: str = ""
+
+
+@dataclass
+class WebSearchHighlight:
+    """A highlight/excerpt from a web search result."""
+    text: str
+    score: float = 0.85
+    references: list[dict] = field(default_factory=list)
+
+
+@dataclass
+class WebSearchSource:
+    """A single source from web search results."""
+    title: str
+    link: str
+    snippet: str = ""
+    date: str = ""
+    attribution: str = ""
+    highlights: list[WebSearchHighlight] = field(default_factory=list)
+
+
+@dataclass
+class WebSearchResult:
+    """Complete web search result data."""
+    organic: list[WebSearchSource] = field(default_factory=list)
+    top_stories: list[WebSearchSource] = field(default_factory=list)
+    knowledge_graph: dict = field(default_factory=dict)
+    answer_box: dict = field(default_factory=dict)
+    people_also_ask: list[dict] = field(default_factory=list)
+
+
+@dataclass
+class FileSearchMatch:
+    """A single match from file search."""
+    filename: str
+    content: str
+    page: str = ""
+    relevance: float = 0.85
+
+
+@dataclass
+class FileSearchResult:
+    """File search result data."""
+    matches: list[FileSearchMatch] = field(default_factory=list)
+
+
+@dataclass
+class ToolCall:
+    """Represents an LLM tool call."""
+    id: str
+    name: str
+    arguments: dict
 
 
 @dataclass
@@ -335,6 +416,292 @@ A semantic search was executed with the user's message as the query, retrieving 
                 }
             }
         }
+    
+    def format_web_search_result(
+        self,
+        turn: int,
+        result: WebSearchResult,
+    ) -> str:
+        """
+        Format web search results for LLM consumption.
+        
+        Replicates: packages/agents/src/tools/search/format.ts:formatResultsForLLM
+        
+        Args:
+            turn: The turn number (0-indexed) for citation anchors
+            result: WebSearchResult with organic results, news, etc.
+        
+        Returns:
+            Formatted string with citation anchors like \\ue202turn0search0
+        """
+        output_lines = []
+        
+        def add_section(title: str):
+            output_lines.append("")
+            output_lines.append(f"=== {title} ===")
+            output_lines.append("")
+        
+        if result.organic:
+            add_section(f"Web Results, Turn {turn}")
+            for i, source in enumerate(result.organic):
+                output_lines.append(f'# Search {i}: "{source.title or "(no title)"}"')
+                output_lines.append(f"\nAnchor: \\ue202turn{turn}search{i}")
+                output_lines.append(f"URL: {source.link}")
+                
+                if source.snippet:
+                    output_lines.append(f"Summary: {source.snippet}")
+                if source.date:
+                    output_lines.append(f"Date: {source.date}")
+                if source.attribution:
+                    output_lines.append(f"Source: {source.attribution}")
+                
+                if source.highlights:
+                    output_lines.append("\n## Highlights")
+                    output_lines.append("")
+                    
+                    for h_idx, highlight in enumerate(source.highlights):
+                        output_lines.append(f"### Highlight {h_idx + 1} [Relevance: {highlight.score:.2f}]")
+                        output_lines.append("")
+                        output_lines.append("```text")
+                        output_lines.append(highlight.text.strip())
+                        output_lines.append("```")
+                        output_lines.append("")
+                        
+                        if highlight.references:
+                            output_lines.append("Core References:")
+                            for ref_idx, ref in enumerate(highlight.references):
+                                output_lines.append(f"- link#{ref_idx + 1}: {ref.get('url', '')}")
+                                output_lines.append(f"\t- Anchor: \\ue202turn{turn}ref{ref_idx}")
+                            output_lines.append("")
+                        
+                        if h_idx < len(source.highlights) - 1:
+                            output_lines.append("---")
+                            output_lines.append("")
+                
+                output_lines.append("")
+        
+        if result.top_stories:
+            add_section("News Results")
+            for i, source in enumerate(result.top_stories):
+                output_lines.append(f'# News {i}: "{source.title or "(no title)"}"')
+                output_lines.append(f"\nAnchor: \\ue202turn{turn}news{i}")
+                output_lines.append(f"URL: {source.link}")
+                
+                if source.snippet:
+                    output_lines.append(f"Summary: {source.snippet}")
+                if source.date:
+                    output_lines.append(f"Date: {source.date}")
+                if source.attribution:
+                    output_lines.append(f"Source: {source.attribution}")
+                output_lines.append("")
+        
+        if result.knowledge_graph:
+            add_section("Knowledge Graph")
+            kg = result.knowledge_graph
+            if kg.get("title"):
+                output_lines.append(f"**Title:** {kg['title']}")
+            if kg.get("type"):
+                output_lines.append(f"**Type:** {kg['type']}")
+            if kg.get("description"):
+                output_lines.append(f"**Description:** {kg['description']}")
+            if kg.get("website"):
+                output_lines.append(f"**Website:** {kg['website']}")
+            output_lines.append("")
+        
+        if result.answer_box:
+            add_section("Answer Box")
+            ab = result.answer_box
+            if ab.get("title"):
+                output_lines.append(f"**Title:** {ab['title']}")
+            if ab.get("snippet"):
+                output_lines.append(f"**Snippet:** {ab['snippet']}")
+            if ab.get("link"):
+                output_lines.append(f"**Link:** {ab['link']}")
+            output_lines.append("")
+        
+        if result.people_also_ask:
+            add_section("People Also Ask")
+            for i, paa in enumerate(result.people_also_ask):
+                output_lines.append(f"### Question {i + 1}:")
+                output_lines.append(f'"{paa.get("question", "")}"')
+                if paa.get("snippet"):
+                    output_lines.append(f"Snippet: {paa['snippet']}")
+                if paa.get("title"):
+                    output_lines.append(f"Title: {paa['title']}")
+                if paa.get("link"):
+                    output_lines.append(f"Link: {paa['link']}")
+                output_lines.append("")
+        
+        return "\n".join(output_lines).strip()
+    
+    def format_file_search_result(
+        self,
+        result: FileSearchResult,
+    ) -> str:
+        """
+        Format file search results for LLM consumption.
+        
+        Args:
+            result: FileSearchResult with matches from files
+        
+        Returns:
+            Formatted string with file search results
+        """
+        if not result.matches:
+            return "No relevant passages found in the attached files."
+        
+        output_lines = [f"Found {len(result.matches)} relevant passages:"]
+        output_lines.append("")
+        
+        for i, match in enumerate(result.matches, 1):
+            location = f" (page {match.page})" if match.page else ""
+            output_lines.append(f"[{i}] From: {match.filename}{location}")
+            output_lines.append(f"Relevance: {match.relevance:.2f}")
+            output_lines.append(f'"{match.content}"')
+            output_lines.append("")
+        
+        return "\n".join(output_lines).strip()
+    
+    def format_mcp_tool_result(
+        self,
+        content: str,
+        tool_name: str = "",
+    ) -> str:
+        """
+        Format MCP tool result for LLM consumption.
+        
+        MCP tools can return various content types. This method handles
+        text content (most common case).
+        
+        Args:
+            content: The text content from the MCP tool
+            tool_name: Optional tool name for context
+        
+        Returns:
+            Formatted string for the tool result
+        """
+        return content
+    
+    def create_tool_result_message(
+        self,
+        tool_call_id: str,
+        content: str,
+    ) -> dict:
+        """
+        Create a tool result message for the message chain.
+        
+        Args:
+            tool_call_id: The ID from the assistant's tool call
+            content: The formatted tool result content
+        
+        Returns:
+            Message dict with role="tool"
+        """
+        return {
+            "role": "tool",
+            "content": content,
+            "tool_call_id": tool_call_id,
+        }
+    
+    def create_assistant_tool_call_message(
+        self,
+        tool_calls: list[ToolCall],
+        content: str = "",
+    ) -> dict:
+        """
+        Create an assistant message with tool calls.
+        
+        Args:
+            tool_calls: List of ToolCall objects
+            content: Optional text content (usually empty for tool calls)
+        
+        Returns:
+            Message dict with role="assistant" and tool_calls
+        """
+        return {
+            "role": "assistant",
+            "content": content,
+            "tool_calls": [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.name,
+                        "arguments": json.dumps(tc.arguments),
+                    }
+                }
+                for tc in tool_calls
+            ]
+        }
+    
+    def build_multi_turn_request(
+        self,
+        initial_request: "PromptRequest",
+        turns: list[dict],
+    ) -> "PromptRequest":
+        """
+        Build a multi-turn conversation with tool calls and results.
+        
+        Args:
+            initial_request: The initial PromptRequest (system + user message)
+            turns: List of turn dicts, each containing either:
+                - {"tool_calls": [ToolCall, ...]} for assistant tool calls
+                - {"tool_result": {"tool_call_id": str, "content": str}} for tool results
+                - {"assistant": str} for assistant text response
+        
+        Returns:
+            PromptRequest with complete multi-turn conversation
+        
+        Example:
+            builder = LibreChatPromptBuilder()
+            initial = builder.build_web_search_prompt(
+                user_message="What's the weather?",
+                agent_instructions="You are helpful."
+            )
+            
+            multi_turn = builder.build_multi_turn_request(
+                initial_request=initial,
+                turns=[
+                    {"tool_calls": [ToolCall(
+                        id="call_001",
+                        name="web_search",
+                        arguments={"query": "weather Rotterdam"}
+                    )]},
+                    {"tool_result": {
+                        "tool_call_id": "call_001",
+                        "content": "=== Web Results, Turn 0 ===..."
+                    }},
+                    {"assistant": "The weather in Rotterdam is..."}
+                ]
+            )
+        """
+        messages = initial_request.messages.copy()
+        
+        for turn in turns:
+            if "tool_calls" in turn:
+                messages.append(self.create_assistant_tool_call_message(
+                    tool_calls=turn["tool_calls"],
+                    content=turn.get("content", ""),
+                ))
+            elif "tool_result" in turn:
+                tr = turn["tool_result"]
+                messages.append(self.create_tool_result_message(
+                    tool_call_id=tr["tool_call_id"],
+                    content=tr["content"],
+                ))
+            elif "assistant" in turn:
+                messages.append({
+                    "role": "assistant",
+                    "content": turn["assistant"],
+                })
+        
+        return PromptRequest(
+            system_prompt=initial_request.system_prompt,
+            messages=messages,
+            tools=initial_request.tools,
+            model=initial_request.model,
+            temperature=initial_request.temperature,
+        )
     
     def build_files_prompt(
         self,
@@ -902,19 +1269,188 @@ if __name__ == "__main__":
     print("\n--- System Prompt ---")
     print(web_request.system_prompt)
     
-    # Example 4: Full export for Ragas
+    # Example 4: Multi-turn Web Search with Tool Results
     print("\n" + "=" * 60)
-    print("EXAMPLE 4: Export for Ragas Integration")
+    print("EXAMPLE 4: Multi-turn Web Search Conversation")
     print("=" * 60)
     
-    # This is how you would export for Ragas
+    web_search_result = WebSearchResult(
+        organic=[
+            WebSearchSource(
+                title="Rotterdam Weather - Current Conditions",
+                link="https://weather.com/rotterdam",
+                snippet="Current temperature 12°C, partly cloudy. Wind 15 km/h from the west.",
+                highlights=[
+                    WebSearchHighlight(
+                        text="Rotterdam, Netherlands\nCurrent: 12°C (54°F)\nConditions: Partly Cloudy\nWind: W 15 km/h\nHumidity: 72%\nForecast: Temperatures will drop to 8°C tonight.",
+                        score=0.95,
+                    )
+                ]
+            ),
+            WebSearchSource(
+                title="Rotterdam Hourly Forecast",
+                link="https://weather.com/rotterdam/hourly",
+                snippet="Hour by hour forecast showing temperatures ranging from 8-14°C today.",
+            )
+        ]
+    )
+    
+    formatted_result = builder.format_web_search_result(turn=0, result=web_search_result)
+    
+    multi_turn = builder.build_multi_turn_request(
+        initial_request=web_request,
+        turns=[
+            {"tool_calls": [ToolCall(
+                id="call_weather_001",
+                name="web_search",
+                arguments={"query": "Rotterdam weather now"}
+            )]},
+            {"tool_result": {
+                "tool_call_id": "call_weather_001",
+                "content": formatted_result,
+            }},
+            {"assistant": "Het weer in Rotterdam is momenteel 12°C met gedeeltelijk bewolkte lucht \\ue202turn0search0. De wind komt uit het westen met 15 km/u en de luchtvochtigheid is 72%.\n\nVanavond zakt de temperatuur naar ongeveer 8°C \\ue202turn0search0."}
+        ]
+    )
+    
+    print("\n--- Multi-turn Messages ---")
+    for i, msg in enumerate(multi_turn.messages):
+        role = msg["role"]
+        if role == "system":
+            print(f"[{i}] system: (system prompt, {len(msg['content'])} chars)")
+        elif role == "user":
+            print(f"[{i}] user: {msg['content']}")
+        elif role == "assistant" and "tool_calls" in msg:
+            tc = msg["tool_calls"][0]
+            print(f"[{i}] assistant (tool_call): {tc['function']['name']}({tc['function']['arguments']})")
+        elif role == "tool":
+            print(f"[{i}] tool [{msg['tool_call_id']}]: {msg['content'][:80]}...")
+        elif role == "assistant":
+            print(f"[{i}] assistant: {msg['content'][:80]}...")
+    
+    # Example 5: File Search Result Formatting
+    print("\n" + "=" * 60)
+    print("EXAMPLE 5: File Search Result")
+    print("=" * 60)
+    
+    file_result = FileSearchResult(
+        matches=[
+            FileSearchMatch(
+                filename="report.pdf",
+                content="Renewable energy adoption increased by 15% in 2024. Key factors include government subsidies and falling solar panel costs.",
+                page="12",
+                relevance=0.92,
+            ),
+            FileSearchMatch(
+                filename="report.pdf",
+                content="Solar panel installations grew by 22% compared to the previous year, with residential installations leading the growth.",
+                page="15",
+                relevance=0.87,
+            ),
+            FileSearchMatch(
+                filename="data.xlsx",
+                content="Total renewable capacity reached 45.2 GW by end of 2024.",
+                page="Summary",
+                relevance=0.81,
+            ),
+        ]
+    )
+    
+    file_search_output = builder.format_file_search_result(file_result)
+    print("\n--- File Search Result ---")
+    print(file_search_output)
+    
+    # Example 6: 2-Step MCP Tool Pattern
+    print("\n" + "=" * 60)
+    print("EXAMPLE 6: 2-Step MCP Search Pattern (Multi-turn)")
+    print("=" * 60)
+    
+    step1_result = """📚 DOCUMENT DISCOVERY - Relevant Documents Found:
+================================================================================
+
+📄 **Document ID: 39248184**
+   Title: Besluit stralingsbescherming
+   Relevance Score: 0.8542
+   Matching Chunks: 3
+
+📄 **Document ID: 39248190**
+   Title: Kernenergiewet
+   Relevance Score: 0.7823
+   Matching Chunks: 2
+
+📋 **SUMMARY: Found 2 unique document(s)**
+**Document IDs for STEP 2:** [39248184, 39248190]
+
+💡 **Next Step:** Use 'zoek_in_specifieke_wetgeving' with the document IDs above."""
+    
+    step2_result = """Retrieved context from Besluit stralingsbescherming:
+
+📄 Document ID: 39248184
+Besluit stralingsbescherming (Pages: 12, 15, 18)
+URL: https://wetten.overheid.nl/BWBR0012702
+
+Artikel 4.1 - Dosislimieten voor werknemers:
+De effectieve dosis voor een werknemer mag niet meer bedragen dan 20 mSv per kalenderjaar \\ue202turn1search0.
+
+Artikel 4.2 - Dosislimieten voor ooglenzen:
+De equivalente dosis voor de ooglens mag niet meer bedragen dan 20 mSv per kalenderjaar \\ue202turn1search0."""
+    
+    mcp_multi_turn = builder.build_multi_turn_request(
+        initial_request=request,  # MCP request from Example 1
+        turns=[
+            {"tool_calls": [ToolCall(
+                id="call_step1",
+                name="zoek_documenten_nederlandse_wetgeving__mcp__neo-search-server",
+                arguments={"question": "dosislimieten werknemers", "num_results": 5}
+            )]},
+            {"tool_result": {
+                "tool_call_id": "call_step1",
+                "content": step1_result,
+            }},
+            {"tool_calls": [ToolCall(
+                id="call_step2",
+                name="zoek_in_specifieke_wetgeving__mcp__neo-search-server",
+                arguments={"question": "dosislimieten werknemers", "doc_ids": [39248184, 39248190], "num_results": 10}
+            )]},
+            {"tool_result": {
+                "tool_call_id": "call_step2",
+                "content": step2_result,
+            }},
+            {"assistant": "De dosislimieten voor werknemers in Nederland zijn vastgelegd in het Besluit stralingsbescherming \\ue202turn1search0:\n\n1. **Effectieve dosis**: maximaal 20 mSv per kalenderjaar\n2. **Ooglens**: maximaal 20 mSv per kalenderjaar\n\nDeze limieten zijn gebaseerd op internationale aanbevelingen van de ICRP."}
+        ]
+    )
+    
+    print("\n--- 2-Step MCP Conversation Flow ---")
+    for i, msg in enumerate(mcp_multi_turn.messages):
+        role = msg["role"]
+        if role == "system":
+            print(f"[{i}] system: (system prompt)")
+        elif role == "user":
+            print(f"[{i}] user: {msg['content'][:60]}...")
+        elif role == "assistant" and "tool_calls" in msg:
+            tc = msg["tool_calls"][0]
+            print(f"[{i}] assistant (tool_call): {tc['function']['name']}")
+            print(f"    args: {tc['function']['arguments'][:60]}...")
+        elif role == "tool":
+            print(f"[{i}] tool [{msg['tool_call_id']}]:")
+            print(f"    {msg['content'][:60]}...")
+        elif role == "assistant":
+            print(f"[{i}] assistant (final):")
+            print(f"    {msg['content'][:60]}...")
+    
+    # Example 7: Full export for Ragas
+    print("\n" + "=" * 60)
+    print("EXAMPLE 7: Export for Ragas Integration (Multi-turn)")
+    print("=" * 60)
+    
     ragas_export = {
-        "system_prompt": request.system_prompt,
-        "user_message": "Wat zijn de eisen voor stralingsbescherming bij nucleaire installaties in Nederland?",
-        "tools": [t["function"]["name"] for t in request.tools],
-        "model": request.model,
-        "temperature": request.temperature,
+        "system_prompt": multi_turn.system_prompt,
+        "messages": multi_turn.messages,
+        "tools": [t["function"]["name"] for t in multi_turn.tools],
+        "model": multi_turn.model,
+        "temperature": multi_turn.temperature,
     }
-    print("\n--- Ragas Export (JSON) ---")
-    print(json.dumps(ragas_export, indent=2, ensure_ascii=False))
+    print("\n--- Ragas Export (JSON, truncated) ---")
+    export_str = json.dumps(ragas_export, indent=2, ensure_ascii=False)
+    print(export_str[:1000] + "\n... (truncated)")
 

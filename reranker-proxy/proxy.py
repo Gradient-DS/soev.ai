@@ -85,8 +85,8 @@ def rerank():
             logger.warning(f"Received {original_count} documents, truncating to {MAX_DOCUMENTS}")
             documents = documents[:MAX_DOCUMENTS]
             
-        logger.info(f"Reranking {len(documents)} documents for query: {query[:100]}...")
-        logger.info(f"First 3 documents preview:\n  [0]: {documents[0][:150] if len(documents) > 0 else 'N/A'}...\n  [1]: {documents[1][:150] if len(documents) > 1 else 'N/A'}...\n  [2]: {documents[2][:150] if len(documents) > 2 else 'N/A'}...")
+        logger.info(f"Reranking {len(documents)} documents for query: {query}...")
+        logger.info(f"First 3 documents preview:\n  [0]: {documents[0] if len(documents) > 0 else 'N/A'}\n  [1]: {documents[1] if len(documents) > 1 else 'N/A'}\n  [2]: {documents[2] if len(documents) > 2 else 'N/A'}")
         
         # Create query-document pairs for the cross-encoder
         pairs = [(query, doc) for doc in documents]

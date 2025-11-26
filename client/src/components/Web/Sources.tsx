@@ -577,6 +577,13 @@ function SourcesComponent({ messageId, conversationId }: SourcesProps = {}) {
   const localize = useLocalize();
   const { searchResults } = useSearchContext();
 
+  // DEBUG: Log searchResults to verify context is receiving data
+  console.log('[DEBUG Sources] searchResults:', {
+    keys: Object.keys(searchResults || {}),
+    hasData: !!searchResults && Object.keys(searchResults).length > 0,
+    firstResultOrganicCount: searchResults ? Object.values(searchResults)[0]?.organic?.length : 0,
+  });
+
   // Simple search results processing with good memoization
   const { organicSources, topStories, images, hasAnswerBox, agentFiles } = useMemo(() => {
     const organicSourcesMap = new Map<string, ValidSource>();

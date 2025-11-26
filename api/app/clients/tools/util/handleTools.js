@@ -1,10 +1,6 @@
 const { logger } = require('@librechat/data-schemas');
-const {
-  EnvVar,
-  Calculator,
-  createSearchTool,
-  createCodeExecutionTool,
-} = require('@librechat/agents');
+const { EnvVar, Calculator, createCodeExecutionTool } = require('@librechat/agents');
+const { createCustomSearchTool } = require('./createCustomSearchTool');
 const {
   checkAccess,
   createSafeUser,
@@ -43,7 +39,6 @@ const { createMCPTool, createMCPTools } = require('~/server/services/MCP');
 const { loadAuthValues } = require('~/server/services/Tools/credentials');
 const { getMCPServerTools } = require('~/server/services/Config');
 const { getRoleByName } = require('~/models/Role');
-const { wrapWebSearchTool } = require('./wrapWebSearchTool');
 
 /**
  * Validates the availability and authentication of tools for a user based on environment variables or user-specific plugin authentication values.
@@ -314,174 +309,35 @@ const loadTools = async ({
         loadAuthValues,
         webSearchConfig: webSearch,
       });
-      console.log('[WEB SEARCH CONFIG - handleTools] Full auth result:', JSON.stringify(result.authResult, null, 2));
-      
       const { onSearchResults, onGetHighlights } = options?.[Tools.web_search] ?? {};
-      
-      const wrappedOnSearchResults = onSearchResults ? (searchResult, runnableConfig) => {
-        console.log('\n========== WEB SEARCH DEBUG - handleTools wrappedOnSearchResults START ==========');
-        console.log('[BEFORE SLICE] Search result received:', {
-          success: searchResult.success,
-          hasData: !!searchResult.data,
-          hasSuccess: searchResult.success,
-        });
-        
-        if (searchResult.data) {
-          console.log('[BEFORE SLICE] Counts:', {
-            organicCount: searchResult.data.organic?.length,
-            topStoriesCount: searchResult.data.topStories?.length,
-            imagesCount: searchResult.data.images?.length,
-            videosCount: searchResult.data.videos?.length,
-            referencesCount: searchResult.data.references?.length,
-            shoppingCount: searchResult.data.shopping?.length,
-            relatedSearchesCount: searchResult.data.relatedSearches?.length,
-            TOTAL: (searchResult.data.organic?.length || 0) + (searchResult.data.topStories?.length || 0) + 
-                   (searchResult.data.images?.length || 0) + (searchResult.data.videos?.length || 0),
-          });
-        }
-        
-        // WORKAROUND: Slice results to match our configured numResults
-        // IMPORTANT: Modify searchResult.data directly (not searchResult.data.organic)
-        // because onSearchResults gets { success, data } but processSources uses searchResult.data
-        if (searchResult.success && searchResult.data) {
-          const configuredNumResults = result.authResult.numResults || 4;
-          const configuredTopResults = result.authResult.topResults || 2;
-          
-          // Slice organic results
-          if (searchResult.data.organic && searchResult.data.organic.length > configuredNumResults) {
-            console.log(`[WORKAROUND] Slicing organic from ${searchResult.data.organic.length} to ${configuredNumResults}`);
-            searchResult.data.organic = searchResult.data.organic.slice(0, configuredNumResults);
-          }
-          
-          // Slice topStories
-          if (searchResult.data.topStories && searchResult.data.topStories.length > configuredNumResults) {
-            console.log(`[WORKAROUND] Slicing topStories from ${searchResult.data.topStories.length} to ${configuredNumResults}`);
-            searchResult.data.topStories = searchResult.data.topStories.slice(0, configuredNumResults);
-          }
-          
-          // Clear other result types
-          if (searchResult.data.images && searchResult.data.images.length > 0) {
-            console.log(`[WORKAROUND] Removing ${searchResult.data.images.length} images`);
-            searchResult.data.images = [];
-          }
-          
-          if (searchResult.data.videos && searchResult.data.videos.length > 0) {
-            console.log(`[WORKAROUND] Removing ${searchResult.data.videos.length} videos`);
-            searchResult.data.videos = [];
-          }
-          
-          if (searchResult.data.relatedSearches && searchResult.data.relatedSearches.length > 0) {
-            console.log(`[WORKAROUND] Removing ${searchResult.data.relatedSearches.length} related searches`);
-            searchResult.data.relatedSearches = [];
-          }
-          
-          if (searchResult.data.shopping && searchResult.data.shopping.length > 0) {
-            console.log(`[WORKAROUND] Removing ${searchResult.data.shopping.length} shopping results`);
-            searchResult.data.shopping = [];
-          }
-          
-          // CRITICAL: Also check and handle references if they already exist
-          if (searchResult.data.references && searchResult.data.references.length > 0) {
-            console.log(`[WORKAROUND] References already exist with ${searchResult.data.references.length} items - CLEARING THEM`);
-            searchResult.data.references = [];
-          }
-          
-          console.log('[AFTER SLICE] Counts:', {
-            organicCount: searchResult.data.organic?.length,
-            topStoriesCount: searchResult.data.topStories?.length,
-            imagesCount: searchResult.data.images?.length,
-            videosCount: searchResult.data.videos?.length,
-            referencesCount: searchResult.data.references?.length,
-            shoppingCount: searchResult.data.shopping?.length,
-            relatedSearchesCount: searchResult.data.relatedSearches?.length,
-            TOTAL: (searchResult.data.organic?.length || 0) + (searchResult.data.topStories?.length || 0),
-          });
-          
-          console.log('[AFTER SLICE] Organic URLs:', 
-            searchResult.data.organic?.map(s => s.link));
-        }
-        
-        console.log('[CALLING ORIGINAL] About to call original onSearchResults...');
-        const returnValue = onSearchResults(searchResult, runnableConfig);
-        
-        console.log('[AFTER ORIGINAL] Original onSearchResults returned, searchResult now:', {
-          organicCount: searchResult.data?.organic?.length,
-          topStoriesCount: searchResult.data?.topStories?.length,
-          referencesCount: searchResult.data?.references?.length,
-        });
-        
-        console.log('========== WEB SEARCH DEBUG - handleTools wrappedOnSearchResults END ==========\n');
-        
-        return returnValue;
-      } : undefined;
-
-      const wrappedOnGetHighlights = onGetHighlights ? async (...args) => {
-        console.log('[WEB SEARCH DEBUG - onGetHighlights] Getting highlights for:', args[0]);
-        const result = await onGetHighlights(...args);
-        console.log('[WEB SEARCH DEBUG - onGetHighlights] Highlights result:', {
-          highlightsCount: result?.length,
-        });
-        return result;
-      } : undefined;
-
       requestedTools[tool] = async () => {
-        toolContextMap[tool] = `# \`${tool}\` (WEB SEARCH) – RULES
+        toolContextMap[tool] = `# \`${tool}\`:
+Current Date & Time: ${replaceSpecialVars({ text: '{{iso_datetime}}' })}
 
-        YOU HAVE ACCESS TO A WEB SEARCH TOOL. FOLLOW THESE RULES STRICTLY:
-        
-        1. CALL THE TOOL INSTEAD OF DESCRIBING A SEARCH.
-           - Never write things like "let's search", "we should use web_search" or raw JSON such as {"query": "..."}.
-           - When you decide that web search is needed, IMMEDIATELY call the \`${tool}\` tool.
-        
-        2. HOW OFTEN TO USE IT
-           - At most **one tool call per user question** (unless the user explicitly asks for more searches).
-           - Do not call the tool again for the same question after you have results.
-        
-        3. HOW TO WRITE THE QUERY
-           - Use a short keyword query (3–6 words), not a full sentence.
-           - Example good queries:
-             - "Rotterdam weather now"
-             - "Rotterdam hourly weather"
-             - "Rotterdam weer komende 6 uur"
-           - Avoid long natural language queries like
-             - "Rotterdam hour by hour forecast November 5 2025 6 hour"
-        
-        4. AFTER THE TOOL RETURNS
-           - Read the provided "output" text and answer the user directly.
-           - Start with a clear answer, then explain details.
-           - Use citations that are already provided; do not invent new URLs.
-        
-        ANSWER IN THE USER'S LANGUAGE (DUTCH IN YOUR CASE).
+**CRITICAL: One search is enough. The results already contain the FULL PAGE CONTENT.**
+
+## How this tool works:
+- When you search, the system automatically visits each URL, scrapes the page, and extracts the relevant content
+- The "highlights" in your results ARE the extracted page content - you already have it
+- There is NO way to "open" or "visit" a URL separately - the search already did that
+
+## Rules:
+1. Search ONCE, then answer using the content provided
+2. Do NOT search again to "open" a source - you cannot open URLs, and you already have the content
+3. If the highlights don't contain enough info, that source simply doesn't have what you need
+4. Use the citation anchors provided (e.g., \\ue202turn0search0) to cite sources
+
+## After searching:
+- Read the highlights from each source
+- Synthesize a complete answer
+- Cite sources inline using the anchor format
 `.trim();
-
-        const toolConfig = {
+        return createCustomSearchTool({
           ...result.authResult,
-          onSearchResults: wrappedOnSearchResults,
-          onGetHighlights: wrappedOnGetHighlights,
+          onSearchResults,
+          onGetHighlights,
           logger,
-        };
-        
-        console.log('[WEB SEARCH DEBUG - handleTools] Creating search tool with config:', {
-          topResults: toolConfig.topResults,
-          numResults: toolConfig.numResults,
-          searchProvider: toolConfig.searchProvider,
-          scraperProvider: toolConfig.scraperProvider,
-          rerankerType: toolConfig.rerankerType,
-          safeSearch: toolConfig.safeSearch,
         });
-        
-        const searchTool = createSearchTool(toolConfig);
-        
-        // Wrap the tool to filter results at source (before LangChain/database)
-        // This ensures both streaming AND database have filtered results
-        const wrappedSearchTool = wrapWebSearchTool(searchTool, {
-          numResults: result.authResult.numResults,
-          topResults: result.authResult.topResults,
-        });
-        
-        console.log('[WEB SEARCH DEBUG - handleTools] ✅ Tool wrapped with result filtering');
-        
-        return wrappedSearchTool;
       };
       continue;
     } else if (tool && mcpToolPattern.test(tool)) {

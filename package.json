@@ -40,11 +40,14 @@
     "backend:experimental": "cross-env NODE_ENV=production node api/server/experimental.js",
     "backend:stop": "node config/stop-backend.js",
     "build:data-provider": "cd packages/data-provider && npm run build",
+    "build:agents": "cd packages/agents && npm run build:ts-only",
     "build:api": "cd packages/api && npm run build",
     "build:data-schemas": "cd packages/data-schemas && npm run build",
     "build:client": "cd client && npm run build",
     "build:client-package": "cd packages/client && npm run build",
     "build:packages": "npm run build:data-provider && npm run build:data-schemas && npm run build:api && npm run build:client-package",
+    "build:admin-plugin": "cd packages/librechat-admin && npm run build",
+    "build:admin-frontend": "cd admin-frontend && npm run build",
     "frontend": "npm run build:data-provider && npm run build:data-schemas && npm run build:api && npm run build:client-package && cd client && npm run build",
     "frontend:ci": "npm run build:data-provider && npm run build:client-package && cd client && npm run build:ci",
     "frontend:dev": "cd client && npm run dev",
@@ -83,7 +86,8 @@
     "migrate:agent-permissions:batch": "node config/migrate-agent-permissions.js --batch-size=50",
     "migrate:prompt-permissions:dry-run": "node config/migrate-prompt-permissions.js --dry-run",
     "migrate:prompt-permissions": "node config/migrate-prompt-permissions.js",
-    "migrate:prompt-permissions:batch": "node config/migrate-prompt-permissions.js --batch-size=50"
+    "migrate:prompt-permissions:batch": "node config/migrate-prompt-permissions.js --batch-size=50",
+    "soev": "npm run build:data-provider && npm run build:data-schemas && npm run build:agents && npm run build:api && npm run build:client-package && npm run build:admin-plugin && npm run build:admin-frontend && cd client && npm run build"
   },
   "repository": {
     "type": "git",
@@ -145,6 +149,9 @@
       "micromark-extension-math": {
         "katex": "^0.16.21"
       }
+    },
+    "@librechat/agents": {
+      "typescript": "5.5.4"
     }
   },
   "nodemonConfig": {

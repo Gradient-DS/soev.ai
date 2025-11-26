@@ -15,6 +15,7 @@ This document details how LibreChat constructs prompts sent to LLM API endpoints
 9. [Example: MCP Prompt with 6 Tools](#example-mcp-prompt-with-6-tools)
 10. [Placeholder Variables](#placeholder-variables)
 11. [Tool Format (OpenAI Function Calling)](#tool-format-openai-function-calling)
+12. [Tool Result Formats](#tool-result-formats)
 
 ---
 
@@ -1024,6 +1025,308 @@ All tools are converted to OpenAI function calling format:
 
 ---
 
+## Tool Result Formats
+
+When tools execute, their results are passed back into the message chain. This section documents the exact format of tool results for benchmarking multi-turn conversations.
+
+### Tool Result Message (OpenAI Format)
+
+Tool results are added to the message array with `role: "tool"`:
+
+```json
+{
+  "role": "tool",
+  "content": "<formatted result string>",
+  "tool_call_id": "call_abc123"
+}
+```
+
+The `tool_call_id` must match the `id` from the assistant's tool call.
+
+### Source Files for Tool Result Formatting
+
+| Component | File Path | Description |
+|-----------|-----------|-------------|
+| Tool execution | `packages/agents/src/tools/ToolNode.ts` | Creates ToolMessage with result |
+| Web search format | `packages/agents/src/tools/search/format.ts` | `formatResultsForLLM()` |
+| MCP result parsing | `packages/api/src/mcp/parsers.ts` | `formatToolContent()` |
+| Search handlers | `packages/agents/src/tools/handlers.ts` | Processes search results |
+
+### Web Search Result Format
+
+Web search results use a structured text format with citation anchors. From `packages/agents/src/tools/search/format.ts`:
+
+```typescript
+// formatResultsForLLM(turn: number, results: SearchResultData)
+// Returns: { output: string; references: ResultReference[] }
+```
+
+**Output Format:**
+
+```
+=== Web Results, Turn 0 ===
+
+# Search 0: "Page Title Here"
+
+Anchor: \ue202turn0search0
+URL: https://example.com/page
+Summary: Brief snippet from the page...
+Date: 2025-01-15
+
+## Highlights
+
+### Highlight 1 [Relevance: 0.85]
+
+```text
+Relevant content extracted from the page that matches the query...
+```
+
+Core References:
+- link#1: https://example.com/reference1
+	- Anchor: \ue202turn0ref0
+
+---
+
+# Search 1: "Another Page Title"
+
+Anchor: \ue202turn0search1
+URL: https://example.com/another
+Summary: Another snippet...
+
+=== News Results ===
+
+# News 0: "News Article Title"
+
+Anchor: \ue202turn0news0
+URL: https://news.example.com/article
+Summary: News summary...
+Date: 2025-01-14
+Source: News Publisher
+
+=== Knowledge Graph ===
+
+**Title:** Topic Name
+
+**Type:** Organization
+
+**Description:** Brief description of the topic...
+
+**Website:** https://official-site.com
+
+=== Answer Box ===
+
+**Title:** Direct Answer
+
+**Snippet:** The direct answer to the query is...
+
+**Link:** https://source.com
+
+=== People Also Ask ===
+
+### Question 1:
+"Related question people often ask?"
+
+Snippet: Answer to the related question...
+Title: Source Title
+Link: https://source.com/answer
+```
+
+**Citation Anchor Format:**
+- Web results: `\ue202turn{turn}search{index}`
+- News results: `\ue202turn{turn}news{index}`
+- References: `\ue202turn{turn}ref{index}`
+
+### MCP Tool Result Format
+
+MCP tool results are parsed through `formatToolContent()` in `packages/api/src/mcp/parsers.ts`. The content can include:
+
+1. **Text content** - Plain text or JSON stringified
+2. **Resources** - Files, documents with metadata
+3. **Images** - Base64 or URL references
+
+**Text Result:**
+```json
+{
+  "role": "tool",
+  "content": "📚 DOCUMENT DISCOVERY - Relevant Documents Found:\n================================================================================\n\n📄 **Document ID: 39248184**\n   Title: Besluit stralingsbescherming\n   Relevance Score: 0.8542\n   ...\n\n📋 **SUMMARY: Found 3 unique document(s)**\n**Document IDs for STEP 2:** [39248184, 39248190, 39248195]",
+  "tool_call_id": "call_abc123"
+}
+```
+
+**Resource Result (formatted as text):**
+```
+Resource: document.pdf
+Resource Description: Regulatory document
+Resource MIME Type: application/pdf
+
+[Content from the resource...]
+```
+
+### File Search Result Format
+
+File search returns relevant passages from attached files with citation metadata:
+
+```json
+{
+  "role": "tool",
+  "content": "Found 3 relevant passages:\n\n[1] From: report.pdf (page 12)\nRelevance: 0.92\n\"The analysis shows that renewable energy adoption increased by 15% in 2024. Key factors include government subsidies and falling solar panel costs.\"\n\n[2] From: report.pdf (page 15)\nRelevance: 0.87\n\"Solar panel installations grew by 22% compared to the previous year, with residential installations leading the growth.\"\n\n[3] From: data.xlsx (sheet: Summary)\nRelevance: 0.81\n\"Total renewable capacity reached 45.2 GW by end of 2024.\"",
+  "tool_call_id": "call_file_search_123"
+}
+```
+
+### Complete Multi-Turn Example with Tool Results
+
+**Turn 1 - User Message:**
+```json
+{
+  "role": "user",
+  "content": "What's the weather in Rotterdam?"
+}
+```
+
+**Turn 2 - Assistant Tool Call:**
+```json
+{
+  "role": "assistant",
+  "content": "",
+  "tool_calls": [
+    {
+      "id": "call_weather_001",
+      "type": "function",
+      "function": {
+        "name": "web_search",
+        "arguments": "{\"query\": \"Rotterdam weather now\"}"
+      }
+    }
+  ]
+}
+```
+
+**Turn 3 - Tool Result:**
+```json
+{
+  "role": "tool",
+  "content": "=== Web Results, Turn 0 ===\n\n# Search 0: \"Rotterdam Weather - Current Conditions\"\n\nAnchor: \\ue202turn0search0\nURL: https://weather.com/rotterdam\nSummary: Current temperature 12°C, partly cloudy. Wind 15 km/h from the west.\n\n## Highlights\n\n### Highlight 1 [Relevance: 0.95]\n\n```text\nRotterdam, Netherlands\nCurrent: 12°C (54°F)\nConditions: Partly Cloudy\nWind: W 15 km/h\nHumidity: 72%\nForecast: Temperatures will drop to 8°C tonight with a chance of light rain.\n```\n\n# Search 1: \"Rotterdam Hourly Forecast\"\n\nAnchor: \\ue202turn0search1\nURL: https://weather.com/rotterdam/hourly\nSummary: Hour by hour forecast showing temperatures ranging from 8-14°C today.",
+  "tool_call_id": "call_weather_001"
+}
+```
+
+**Turn 4 - Assistant Response:**
+```json
+{
+  "role": "assistant",
+  "content": "Het weer in Rotterdam is momenteel 12°C met gedeeltelijk bewolkte lucht \\ue202turn0search0. De wind komt uit het westen met 15 km/u en de luchtvochtigheid is 72%.\n\nVanavond zakt de temperatuur naar ongeveer 8°C met kans op lichte regen \\ue202turn0search0."
+}
+```
+
+### Complete API Request with Tool Results
+
+```json
+{
+  "model": "gpt-4",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant.\n\n# `web_search` (WEB SEARCH) – RULES\n\nYOU HAVE ACCESS TO A WEB SEARCH TOOL..."
+    },
+    {
+      "role": "user",
+      "content": "What's the weather in Rotterdam?"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "call_weather_001",
+          "type": "function",
+          "function": {
+            "name": "web_search",
+            "arguments": "{\"query\": \"Rotterdam weather now\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "content": "=== Web Results, Turn 0 ===\n\n# Search 0: \"Rotterdam Weather\"...",
+      "tool_call_id": "call_weather_001"
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "web_search",
+        "description": "Search the web for current information.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {"type": "string", "description": "The search query"}
+          },
+          "required": ["query"]
+        }
+      }
+    }
+  ],
+  "tool_choice": "auto",
+  "temperature": 0.7
+}
+```
+
+### Multi-Step Tool Usage (2-Step MCP Pattern)
+
+For MCP tools using the 2-step search pattern, the conversation includes multiple tool calls:
+
+```json
+{
+  "messages": [
+    {"role": "system", "content": "..."},
+    {"role": "user", "content": "Wat zijn de dosislimieten voor werknemers?"},
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [{
+        "id": "call_step1",
+        "type": "function",
+        "function": {
+          "name": "zoek_documenten_nederlandse_wetgeving__mcp__neo-search-server",
+          "arguments": "{\"question\": \"dosislimieten werknemers\"}"
+        }
+      }]
+    },
+    {
+      "role": "tool",
+      "content": "📚 DOCUMENT DISCOVERY...\n📄 **Document ID: 39248184**\n   Title: Besluit stralingsbescherming\n...\n**Document IDs for STEP 2:** [39248184, 39248190]",
+      "tool_call_id": "call_step1"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [{
+        "id": "call_step2",
+        "type": "function",
+        "function": {
+          "name": "zoek_in_specifieke_wetgeving__mcp__neo-search-server",
+          "arguments": "{\"question\": \"dosislimieten werknemers\", \"doc_ids\": [39248184, 39248190]}"
+        }
+      }]
+    },
+    {
+      "role": "tool",
+      "content": "Retrieved context from Besluit stralingsbescherming:\n\nArtikel 4.1 - Dosislimieten voor werknemers:\nDe effectieve dosis voor een werknemer mag niet meer bedragen dan 20 mSv per kalenderjaar \\ue202turn1search0...",
+      "tool_call_id": "call_step2"
+    },
+    {
+      "role": "assistant",
+      "content": "De dosislimieten voor werknemers in Nederland zijn vastgelegd in het Besluit stralingsbescherming \\ue202turn1search0..."
+    }
+  ]
+}
+```
+
+---
+
 ## Debugging: Capturing Actual Prompts
 
 To see what LibreChat actually sends to the LLM API, add logging in:
@@ -1067,4 +1370,10 @@ For single-turn Q&A benchmarking with Ragas, focus on capturing:
 - User message
 - Tools array (OpenAI function format)
 - Model parameters (temperature, etc.)
+
+For multi-turn benchmarking with tool usage:
+- All of the above, plus:
+- Assistant tool call messages (`role: "assistant"` with `tool_calls` array)
+- Tool result messages (`role: "tool"` with `content` and `tool_call_id`)
+- Citation anchors in results (e.g., `\ue202turn0search0`)
 

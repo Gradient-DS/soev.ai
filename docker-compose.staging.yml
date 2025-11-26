@@ -1,16 +1,15 @@
 networks:
-  scraper_network:
   internal:
   edge:
 
 services:
   ## CORE APPLICATION
   librechat_api:
-    image: ghcr.io/gradient-ds/soevai-api:${LIBRECHAT_TAG:-latest}
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile.soev.ai.multi
-    #   target: api-build
+    # image: ghcr.io/gradient-ds/soevai-api:${LIBRECHAT_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile.soev.ai.multi
+      target: api-build
     container_name: librechat_api
     restart: unless-stopped
     labels:
@@ -24,6 +23,7 @@ services:
       MEILI_HOST: http://meilisearch:7700
       RAG_API_URL: http://rag_api:8000
       SOEVAI_ROOT: /app
+      DEBUG_LOGGING: "true"
     depends_on:
       - mongodb
       - rag_api
@@ -97,124 +97,6 @@ services:
       - "8000:8000"
     networks:
       - internal
-  
-
-  ## SCRAPER APPLICATION
-  firecrawl_redis:
-    image: redis:alpine
-    container_name: scraper_redis
-    restart: unless-stopped
-    networks:
-      - scraper_network
-    command: redis-server --bind 0.0.0.0
-    ports:
-      - "0.0.0.0:6379:6379" 
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
-
-  firecrawl_postgres:
-    build: ./firecrawl/apps/nuq-postgres
-    container_name: scraper_postgres
-    restart: unless-stopped
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=postgres
-    networks:
-      - scraper_network
-    volumes:
-      - firecrawl_pgdata:/var/lib/postgresql/data
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-          cpus: '1.0'
-
-  playwright_service:
-    build: ./firecrawl/apps/playwright-service-ts
-    container_name: scraper_playwright
-    restart: unless-stopped
-    environment:
-      - PORT=3000
-      - PROXY_SERVER=${PROXY_SERVER:-}
-      - PROXY_USERNAME=${PROXY_USERNAME:-}
-      - PROXY_PASSWORD=${PROXY_PASSWORD:-}
-      - BLOCK_MEDIA=${BLOCK_MEDIA:-true}
-    networks:
-      - scraper_network
-    shm_size: 2gb
-    depends_on:
-      - firecrawl_redis
-    deploy:
-      resources:
-        limits:
-          memory: 4G
-          cpus: '4.0'
-
-  firecrawl_api:
-    build: ./firecrawl/apps/api
-    container_name: scraper_firecrawl_api
-    restart: unless-stopped
-    command: node dist/src/harness.js --start-docker
-    ports:
-      - "3002:3002"  # Exposed for external access from LibreChat VM
-    environment:
-      - HOST=0.0.0.0
-      - PORT=3002
-      - REDIS_URL=redis://firecrawl_redis:6379
-      - REDIS_RATE_LIMIT_URL=redis://firecrawl_redis:6379
-      - PLAYWRIGHT_MICROSERVICE_URL=http://playwright_service:3000/scrape
-      - NUQ_DATABASE_URL=postgres://postgres:postgres@firecrawl_postgres:5432/postgres
-      - USE_DB_AUTHENTICATION=false
-      - SEARXNG_ENDPOINT=http://searxng:8080
-      - ENV=production
-    networks:
-      - scraper_network
-    deploy:
-      resources:
-        limits:
-          memory: 4G
-          cpus: '4.0'
-    depends_on:
-      - firecrawl_redis
-      - firecrawl_postgres
-      - playwright_service
-
-  reranker_proxy:
-    build: ./reranker-proxy
-    container_name: scraper_reranker
-    restart: unless-stopped
-    ports:
-      - "8001:8000"  # Exposed for external access from LibreChat VM
-    environment:
-      - MAX_DOCUMENTS=50
-    networks:
-      - scraper_network
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-          cpus: '1.0'
-
-  searxng:
-    image: searxng/searxng:latest
-    container_name: scraper_searxng
-    restart: unless-stopped
-    ports:
-      - "8080:8080"  # Exposed for external access from LibreChat VM
-    volumes:
-      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
-    networks:
-      - scraper_network
-    environment:
-      - SEARXNG_BASE_URL=${SEARXNG_BASE_URL:-http://localhost:8080}
-      - SEARXNG_SECRET=${SEARXNG_SECRET:-changeme-production-secret}
-      - SEARXNG_LIMITER=false
-      - SEARXNG_IMAGE_PROXY=false
-
 
 
   ## REVERSE PROXY APPLICATION
@@ -355,7 +237,6 @@ services:
 
 volumes:
   pgdata2:
-  firecrawl_pgdata:
   prometheus_data:
   alertmanager_data:
   grafana_data:
