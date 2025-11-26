@@ -39,7 +39,6 @@ services:
       - "3080:3080"
     networks:
       - internal
-      - scraper_network
 
   mongodb:
     image: mongo
