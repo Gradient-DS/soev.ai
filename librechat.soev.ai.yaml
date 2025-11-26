@@ -382,6 +382,8 @@ webSearch:
   # Search and scraping configuration
   topResults: 5          # Number of reranked highlight chunks per source (default: 5)
   numResults: 4          # Number of search result URLs to fetch from SearXNG
+  chunkSize: 500         # Characters per chunk for reranking
+  chunkOverlap: 50  
   
   # Firecrawl options
   firecrawlOptions:

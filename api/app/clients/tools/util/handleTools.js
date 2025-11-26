@@ -1,10 +1,6 @@
 const { logger } = require('@librechat/data-schemas');
-const {
-  EnvVar,
-  Calculator,
-  createSearchTool,
-  createCodeExecutionTool,
-} = require('@librechat/agents');
+const { EnvVar, Calculator, createCodeExecutionTool } = require('@librechat/agents');
+const { createCustomSearchTool } = require('./createCustomSearchTool');
 const {
   checkAccess,
   createSafeUser,
@@ -43,7 +39,6 @@ const { createMCPTool, createMCPTools } = require('~/server/services/MCP');
 const { loadAuthValues } = require('~/server/services/Tools/credentials');
 const { getMCPServerTools } = require('~/server/services/Config');
 const { getRoleByName } = require('~/models/Role');
-const { wrapWebSearchTool } = require('./wrapWebSearchTool');
 
 /**
  * Validates the availability and authentication of tools for a user based on environment variables or user-specific plugin authentication values.
@@ -314,77 +309,35 @@ const loadTools = async ({
         loadAuthValues,
         webSearchConfig: webSearch,
       });
-      
       const { onSearchResults, onGetHighlights } = options?.[Tools.web_search] ?? {};
-      
-      const wrappedOnSearchResults = onSearchResults ? (searchResult, runnableConfig) => {
-        if (searchResult.success && searchResult.data) {
-          const configuredNumResults = result.authResult.numResults || 4;
-          
-          if (searchResult.data.organic && searchResult.data.organic.length > configuredNumResults) {
-            searchResult.data.organic = searchResult.data.organic.slice(0, configuredNumResults);
-          }
-          if (searchResult.data.topStories && searchResult.data.topStories.length > configuredNumResults) {
-            searchResult.data.topStories = searchResult.data.topStories.slice(0, configuredNumResults);
-          }
-          if (searchResult.data.images) searchResult.data.images = [];
-          if (searchResult.data.videos) searchResult.data.videos = [];
-          if (searchResult.data.relatedSearches) searchResult.data.relatedSearches = [];
-          if (searchResult.data.shopping) searchResult.data.shopping = [];
-          if (searchResult.data.references) searchResult.data.references = [];
-        }
-        return onSearchResults(searchResult, runnableConfig);
-      } : undefined;
-
-      const wrappedOnGetHighlights = onGetHighlights ? (link, highlights) => {
-        onGetHighlights(link, highlights);
-      } : undefined;
-
       requestedTools[tool] = async () => {
-        toolContextMap[tool] = `# \`${tool}\` (WEB SEARCH) – RULES
+        toolContextMap[tool] = `# \`${tool}\`:
+Current Date & Time: ${replaceSpecialVars({ text: '{{iso_datetime}}' })}
 
-        YOU HAVE ACCESS TO A WEB SEARCH TOOL. FOLLOW THESE RULES STRICTLY:
-        
-        1. CALL THE TOOL INSTEAD OF DESCRIBING A SEARCH.
-           - Never write things like "let's search", "we should use web_search" or raw JSON such as {"query": "..."}.
-           - When you decide that web search is needed, IMMEDIATELY call the \`${tool}\` tool.
-        
-        2. HOW OFTEN TO USE IT
-           - At most **one tool call per user question** (unless the user explicitly asks for more searches).
-           - Do not call the tool again for the same question after you have results.
-        
-        3. HOW TO WRITE THE QUERY
-           - Use a short keyword query (3–6 words), not a full sentence.
-           - Example good queries:
-             - "Rotterdam weather now"
-             - "Rotterdam hourly weather"
-             - "Rotterdam weer komende 6 uur"
-           - Avoid long natural language queries like
-             - "Rotterdam hour by hour forecast November 5 2025 6 hour"
-        
-        4. AFTER THE TOOL RETURNS
-           - Read the provided "output" text and answer the user directly.
-           - Start with a clear answer, then explain details.
-           - Use citations that are already provided; do not invent new URLs.
-        
-        ANSWER IN THE USER'S LANGUAGE (DUTCH IN YOUR CASE).
+**CRITICAL: One search is enough. The results already contain the FULL PAGE CONTENT.**
+
+## How this tool works:
+- When you search, the system automatically visits each URL, scrapes the page, and extracts the relevant content
+- The "highlights" in your results ARE the extracted page content - you already have it
+- There is NO way to "open" or "visit" a URL separately - the search already did that
+
+## Rules:
+1. Search ONCE, then answer using the content provided
+2. Do NOT search again to "open" a source - you cannot open URLs, and you already have the content
+3. If the highlights don't contain enough info, that source simply doesn't have what you need
+4. Use the citation anchors provided (e.g., \\ue202turn0search0) to cite sources
+
+## After searching:
+- Read the highlights from each source
+- Synthesize a complete answer
+- Cite sources inline using the anchor format
 `.trim();
-
-        const toolConfig = {
+        return createCustomSearchTool({
           ...result.authResult,
-          onSearchResults: wrappedOnSearchResults,
-          onGetHighlights: wrappedOnGetHighlights,
+          onSearchResults,
+          onGetHighlights,
           logger,
-        };
-        
-        const searchTool = createSearchTool(toolConfig);
-        
-        const wrappedSearchTool = wrapWebSearchTool(searchTool, {
-          numResults: result.authResult.numResults,
-          topResults: result.authResult.topResults,
         });
-        
-        return wrappedSearchTool;
       };
       continue;
     } else if (tool && mcpToolPattern.test(tool)) {

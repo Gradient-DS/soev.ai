@@ -5,7 +5,7 @@ const { logger } = require('@librechat/data-schemas');
 /**
  * Creates a function to handle search results and stream them as attachments
  * @param {import('http').ServerResponse} res - The HTTP server response object
- * @returns {{ onSearchResults: function(SearchResult, GraphRunnableConfig): void; onGetHighlights: function(string, Array): void}} - Function that takes search results and returns or streams an attachment
+ * @returns {{ onSearchResults: function(SearchResult, GraphRunnableConfig): void; onGetHighlights: function(string): void}} - Function that takes search results and returns or streams an attachment
  */
 function createOnSearchResults(res) {
   const context = {
@@ -24,25 +24,21 @@ function createOnSearchResults(res) {
   function onSearchResults(results, runnableConfig) {
     logger.info(
       `[onSearchResults] user: ${runnableConfig.metadata.user_id} | thread_id: ${runnableConfig.metadata.thread_id} | run_id: ${runnableConfig.metadata.run_id}`,
+      results,
     );
 
     if (!results.success) {
       logger.error(
-        `[onSearchResults] error: ${results.error}`,
+        `[onSearchResults] user: ${runnableConfig.metadata.user_id} | thread_id: ${runnableConfig.metadata.thread_id} | run_id: ${runnableConfig.metadata.run_id} | error: ${results.error}`,
       );
       return;
     }
 
     const turn = runnableConfig.toolCall?.turn ?? 0;
     const data = { turn, ...structuredClone(results.data ?? {}) };
-    
-    if (data.images) data.images = [];
-    if (data.videos) data.videos = [];
-    if (data.shopping) data.shopping = [];
-    if (data.relatedSearches) data.relatedSearches = [];
-    
     context.searchResultData = data;
 
+    // Map sources to links
     for (let i = 0; i < data.organic.length; i++) {
       const source = data.organic[i];
       if (source.link) {
@@ -70,63 +66,29 @@ function createOnSearchResults(res) {
     context.attachmentName = `${runnableConfig.toolCall.name}_${context.toolCallId}_${nanoid()}`;
 
     const attachment = buildAttachment(context);
-    
-    console.log('[search.js] Attachment to UI:', {
-      messageId: attachment.messageId,
-      conversationId: attachment.conversationId,
-      organicCount: attachment[Tools.web_search]?.organic?.length,
-      hasHighlights: attachment[Tools.web_search]?.organic?.some(s => s.highlights?.length > 0),
-    });
 
     if (!res.headersSent) {
       return attachment;
     }
-    
     res.write(`event: attachment\ndata: ${JSON.stringify(attachment)}\n\n`);
   }
 
   /**
    * @param {string} link
-   * @param {Array<{score: number, text: string}>} [highlights]
    * @returns {void}
    */
-  function onGetHighlights(link, highlights) {
+  function onGetHighlights(link) {
     const source = context.sourceMap.get(link);
     if (!source) {
       return;
     }
-    
     const { type, index } = source;
     const data = context.searchResultData;
     if (!data) {
       return;
     }
-    
     if (data[type][index] != null) {
       data[type][index].processed = true;
-      
-      if (highlights && highlights.length > 0) {
-        data[type][index].highlights = highlights;
-      }
-    }
-    
-    if (data.organic) {
-      for (const source of data.organic) {
-        if (source.references) {
-          delete source.references;
-        }
-      }
-    }
-    if (data.topStories) {
-      for (const source of data.topStories) {
-        if (source.references) {
-          delete source.references;
-        }
-      }
-    }
-    
-    if (data.references) {
-      data.references = [];
     }
 
     const attachment = buildAttachment(context);

@@ -73,14 +73,18 @@ export function loadWebSearchConfig(
   const jinaApiUrl = config?.jinaApiUrl ?? '${JINA_API_URL}';
   const cohereApiKey = config?.cohereApiKey ?? '${COHERE_API_KEY}';
   const safeSearch = config?.safeSearch ?? SafeSearchTypes.MODERATE;
-  const topResults = config?.topResults ?? 2;
+  const topResults = config?.topResults ?? 5;
   const numResults = config?.numResults ?? 4;
+  const chunkSize = config?.chunkSize ?? 500;
+  const chunkOverlap = config?.chunkOverlap ?? 50;
 
   return {
     ...config,
     safeSearch,
     topResults,
     numResults,
+    chunkSize,
+    chunkOverlap,
     jinaApiKey,
     jinaApiUrl,
     cohereApiKey,

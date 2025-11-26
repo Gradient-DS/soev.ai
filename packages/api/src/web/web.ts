@@ -199,6 +199,9 @@ export async function loadWebSearchAuth({
   authResult.firecrawlOptions = webSearchConfig?.firecrawlOptions;
   authResult.topResults = webSearchConfig?.topResults;
   authResult.numResults = webSearchConfig?.numResults;
+  authResult.maxSources = webSearchConfig?.numResults;
+  authResult.chunkSize = webSearchConfig?.chunkSize;
+  authResult.chunkOverlap = webSearchConfig?.chunkOverlap;
 
   return {
     authTypes,
