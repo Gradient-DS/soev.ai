@@ -380,8 +380,8 @@ webSearch:
   jinaApiKey: "${JINA_API_KEY}"
   
   # Search and scraping configuration
-  topResults: 2          # Scrape top 2 results
-  numResults: 4          # Get 4 search results from SearXNG
+  topResults: 5          # Number of reranked highlight chunks per source (default: 5)
+  numResults: 4          # Number of search result URLs to fetch from SearXNG
   
   # Firecrawl options
   firecrawlOptions:

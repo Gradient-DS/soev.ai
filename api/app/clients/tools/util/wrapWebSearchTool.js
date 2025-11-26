@@ -17,6 +17,12 @@ function wrapWebSearchTool(tool, config) {
   tool.invoke = async function wrappedInvoke(input) {
     const result = await originalInvoke(input);
     
+    console.log('\n========== [web_search] FULL TOOL OUTPUT TO MODEL ==========');
+    console.log('Length:', result?.content?.length, 'characters');
+    console.log('--- START CONTENT ---');
+    console.log(result?.content);
+    console.log('--- END CONTENT ---\n');
+    
     if (!result || !result.artifact) {
       return result;
     }
