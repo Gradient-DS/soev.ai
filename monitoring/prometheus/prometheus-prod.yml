@@ -23,13 +23,13 @@ scrape_configs:
         labels:
           environment: 'production'
 
-  # Flask API metrics
-  - job_name: 'api'
+  # LibreChat exporter metrics
+  - job_name: 'librechat'
     static_configs:
-      - targets: ['api:5002']
+      - targets: ['metrics:8000']
         labels:
           environment: 'production'
-          service: 'api'
+          service: 'librechat'
     metrics_path: '/metrics'
     scrape_interval: 15s
 
@@ -40,8 +40,7 @@ scrape_configs:
         labels:
           environment: 'production'
           service: 'node-exporter'
-    scrape_interval: 30s 
-
+    scrape_interval: 30s
 
   # Alertmanager metrics
   - job_name: 'alertmanager'
@@ -51,4 +50,4 @@ scrape_configs:
           environment: 'production'
           service: 'alertmanager'
     metrics_path: '/metrics'
-    scrape_interval: 30s 
+    scrape_interval: 30s
