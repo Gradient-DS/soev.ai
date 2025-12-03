@@ -44,13 +44,13 @@ ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN npm run soev
 
 # API setup (including client dist)
-FROM base-min AS api-build
+FROM base AS api-build
 # Add `uv` for extended MCP support
 COPY --from=ghcr.io/astral-sh/uv:0.6.13 /uv /uvx /bin/
 RUN uv --version
 WORKDIR /app
-# Install only production deps
-RUN CI=true npm ci --omit=dev
+# Prune dev dependencies (node_modules already installed from base stage)
+RUN npm prune --omit=dev
 COPY api ./api
 COPY config ./config
 COPY packages/custom ./packages/custom
