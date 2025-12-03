@@ -160,7 +160,8 @@
       "data/",
       "client/",
       "admin/",
-      "packages/"
+      "packages/",
+      "logs/"
     ]
   },
   "dependencies": {
