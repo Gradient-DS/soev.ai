@@ -1,0 +1,13 @@
+# Environment files with secrets
+config.env
+*.env
+!config.env.example
+
+# Deployment bundles
+bundle/
+*.tar.gz
+
+# Temporary files
+*.tmp
+*.log
+
