@@ -28,10 +28,10 @@ COPY api/package*.json ./api/
 # Install all dependencies for every build
 FROM base-min AS base
 WORKDIR /app
-RUN CI=true npm ci
+RUN CI=true npm install --legacy-peer-deps
 # Install admin-frontend dependencies separately (not part of workspace)
 WORKDIR /app/admin-frontend
-RUN CI=true npm ci
+RUN CI=true npm install --legacy-peer-deps
 WORKDIR /app
 
 # Build all packages using npm run soev
