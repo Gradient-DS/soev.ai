@@ -1,0 +1,160 @@
+---
+description: Guide for merging upstream changes from LibreChat and submodules
+globs: 
+alwaysApply: false
+---
+# Upstream Merge Process
+
+Guide for merging upstream changes into soev.ai from LibreChat and its submodules.
+
+## Repository Structure
+
+- **Main repo**: Fork of `https://github.com/danny-avila/LibreChat.git`
+- **firecrawl/**: Submodule from `https://github.com/mendableai/firecrawl.git`
+- **packages/agents/**: Fork of `https://github.com/danny-avila/agents.git`
+
+## Merge Order
+
+Always merge in this sequence:
+
+1. Clean dependencies (remove package-lock.json and node_modules)
+2. Firecrawl submodule (independent)
+3. Agents package (fork with upstream)
+4. LibreChat main repo (depends on agents)
+
+## Step-by-Step Commands
+
+### 0. Clean Dependencies
+
+Remove node_modules, package-lock.json, and dist folders before merging:
+
+```bash
+npm run clean
+git add -A
+git commit -m "chore: clean before upstream merge"
+```
+
+Available clean scripts:
+- `npm run clean` - Remove node_modules, package-lock.json, and dist
+- `npm run clean:install` - Clean + npm install
+- `npm run clean:build` - Clean + npm install + npm run soev
+
+### 1. Firecrawl Submodule
+
+```bash
+cd firecrawl
+git fetch origin
+git checkout main
+git pull origin main
+cd ..
+git add firecrawl
+```
+
+### 2. Agents Package
+
+```bash
+cd packages/agents
+
+# First time only: add upstream
+git remote add upstream https://github.com/danny-avila/agents.git
+
+# Create merge branch
+git fetch upstream
+git checkout main
+git checkout -b merge/upstream-$(date +%Y%m%d)
+
+# Merge upstream
+git merge upstream/main
+
+# Resolve conflicts, then merge to main and push
+git checkout main
+git merge merge/upstream-$(date +%Y%m%d)
+git push origin main
+git branch -d merge/upstream-$(date +%Y%m%d)
+
+cd ../..
+git add packages/agents
+```
+
+### 3. LibreChat Main Repo
+
+```bash
+git fetch upstream
+git checkout -b merge/upstream-$(date +%Y%m%d)
+git merge upstream/main
+
+# Resolve conflicts, then commit
+```
+
+## Build Verification
+
+After merging, reinstall and build everything:
+
+```bash
+npm run clean:build   # Or: npm install && npm run soev
+npm run lint
+```
+
+**What `npm run soev` builds:**
+- data-provider
+- data-schemas
+- agents
+- api package
+- client-package
+- admin-plugin
+- admin-frontend
+- client
+
+## Common Conflict Areas
+
+Files that often have custom changes:
+
+- `package.json` - Custom scripts and dependencies
+- `librechat.*.yaml` - Configuration files
+- `client/src/` - UI customizations
+- `api/server/` - Custom endpoints
+- `packages/api/src/` - API extensions
+
+## Conflict Resolution Strategy
+
+1. **Keep soev.ai changes** for:
+   - Custom scripts in package.json
+   - Configuration files
+   - UI branding/customizations
+   - Custom features
+
+2. **Accept upstream changes** for:
+   - Bug fixes
+   - Security patches
+   - Core functionality improvements
+   - Dependency updates
+
+3. **Merge carefully** for:
+   - Shared components with modifications
+   - API routes with extensions
+
+## Troubleshooting
+
+### Clean reinstall
+
+```bash
+rm -rf node_modules packages/*/node_modules client/node_modules api/node_modules
+npm install
+```
+
+### Rebuild from scratch
+
+```bash
+rm -rf packages/*/dist client/dist
+npm run soev
+```
+
+### Submodule issues
+
+```bash
+git submodule update --init --recursive
+```
+
+## Reference
+
+Full documentation: `UPSTREAM_MERGE_GUIDE.md` in project root

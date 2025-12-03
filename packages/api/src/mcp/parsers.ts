@@ -272,7 +272,7 @@ export function formatToolContent(
     }
   }
 
-  if (CONTENT_ARRAY_PROVIDERS.has(provider) && currentTextBlock) {
+  if (treatAsArray && currentTextBlock) {
     formattedContent.push({ type: 'text', text: currentTextBlock });
   }
 
