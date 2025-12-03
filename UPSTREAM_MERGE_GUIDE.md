@@ -19,6 +19,24 @@ git status
 git stash  # if needed
 ```
 
+### Clean dependencies before merge
+
+Remove all `package-lock.json` and `node_modules` to avoid massive diffs:
+
+```bash
+# Remove all package-lock.json files
+find . -name "package-lock.json" -not -path "./firecrawl/*" -delete
+
+# Remove all node_modules directories
+find . -name "node_modules" -type d -not -path "./firecrawl/*" -exec rm -rf {} + 2>/dev/null
+
+# Commit the removal
+git add -A
+git commit -m "chore: remove package-lock.json before upstream merge"
+```
+
+This ensures a clean `npm install` after merging generates fresh lock files.
+
 ## Merge Order
 
 Always merge in this order to handle dependencies correctly:
@@ -60,16 +78,22 @@ cd packages/agents
 git remote add upstream https://github.com/danny-avila/agents.git
 ```
 
-### 2.2 Fetch and merge upstream
+### 2.2 Create merge branch
 
 ```bash
 cd packages/agents
 git fetch upstream
 git checkout main
+git checkout -b merge/upstream-$(date +%Y%m%d)
+```
+
+### 2.3 Merge upstream
+
+```bash
 git merge upstream/main
 ```
 
-### 2.3 Resolve conflicts
+### 2.4 Resolve conflicts
 
 If conflicts occur:
 
@@ -84,14 +108,22 @@ git add .
 git commit -m "chore: merge upstream agents"
 ```
 
-### 2.4 Push to fork
+### 2.5 Merge to main and push
 
 ```bash
+git checkout main
+git merge merge/upstream-$(date +%Y%m%d)
 git push origin main
+```
+
+### 2.6 Clean up merge branch
+
+```bash
+git branch -d merge/upstream-$(date +%Y%m%d)
 cd ../..
 ```
 
-### 2.5 Stage the submodule update
+### 2.7 Stage the submodule update
 
 ```bash
 git add packages/agents
@@ -266,13 +298,41 @@ If upstream agents has breaking changes:
 
 ```bash
 # Full upstream merge (all steps)
+
+# 0. Clean dependencies
+find . -name "package-lock.json" -not -path "./firecrawl/*" -delete
+find . -name "node_modules" -type d -not -path "./firecrawl/*" -exec rm -rf {} + 2>/dev/null
+git add -A && git commit -m "chore: remove package-lock.json before upstream merge"
+
+# 1. Firecrawl
 cd firecrawl && git pull origin main && cd ..
-cd packages/agents && git fetch upstream && git merge upstream/main && git push origin main && cd ../..
-git fetch upstream && git merge upstream/main
+
+# 2. Agents (with merge branch)
+cd packages/agents
+git fetch upstream
+git checkout -b merge/upstream-$(date +%Y%m%d)
+git merge upstream/main
+# resolve conflicts if any
+git checkout main && git merge merge/upstream-$(date +%Y%m%d)
+git push origin main
+git branch -d merge/upstream-$(date +%Y%m%d)
+cd ../..
+
+# 3. Main repo (with merge branch)
+git fetch upstream
+git checkout -b merge/upstream-$(date +%Y%m%d)
+git merge upstream/main
+# resolve conflicts if any
+
+# 4. Build and verify
 npm install
 npm run soev
 npm run lint
+
+# 5. Finalize
 git add . && git commit -m "chore: merge upstream $(date +%Y-%m-%d)"
+git checkout main && git merge merge/upstream-$(date +%Y%m%d)
+git push origin main
 ```
 
 ---

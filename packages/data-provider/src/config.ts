@@ -1018,6 +1018,7 @@ const sharedAnthropicModels = [
   'claude-haiku-4-5-20251001',
   'claude-opus-4-1',
   'claude-opus-4-1-20250805',
+  'claude-opus-4-5',
   'claude-sonnet-4-20250514',
   'claude-sonnet-4-0',
   'claude-opus-4-20250514',
@@ -1599,7 +1600,7 @@ export enum TTSProviders {
 /** Enum for app-wide constants */
 export enum Constants {
   /** Key for the app's version. */
-  VERSION = 'v0.8.1-rc1',
+  VERSION = 'v0.8.1-rc2',
   /** Key for the Custom Config's version (librechat.yaml). */
   CONFIG_VERSION = '1.3.1',
   /** Standard value for the first message's `parentMessageId` value, to indicate no parent exists. */
