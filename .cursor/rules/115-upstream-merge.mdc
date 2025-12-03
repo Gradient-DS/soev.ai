@@ -26,14 +26,18 @@ Always merge in this sequence:
 
 ### 0. Clean Dependencies
 
-Remove lock files and node_modules before merging to avoid massive diffs:
+Remove node_modules, package-lock.json, and dist folders before merging:
 
 ```bash
-find . -name "package-lock.json" -not -path "./firecrawl/*" -delete
-find . -name "node_modules" -type d -not -path "./firecrawl/*" -exec rm -rf {} + 2>/dev/null
+npm run clean
 git add -A
-git commit -m "chore: remove package-lock.json before upstream merge"
+git commit -m "chore: clean before upstream merge"
 ```
+
+Available clean scripts:
+- `npm run clean` - Remove node_modules, package-lock.json, and dist
+- `npm run clean:install` - Clean + npm install
+- `npm run clean:build` - Clean + npm install + npm run soev
 
 ### 1. Firecrawl Submodule
 
@@ -84,15 +88,14 @@ git merge upstream/main
 
 ## Build Verification
 
-After merging, always run:
+After merging, reinstall and build everything:
 
 ```bash
-npm install
-npm run soev    # Full build including agents and admin
+npm run clean:build   # Or: npm install && npm run soev
 npm run lint
 ```
 
-The `npm run soev` command builds:
+**What `npm run soev` builds:**
 - data-provider
 - data-schemas
 - agents

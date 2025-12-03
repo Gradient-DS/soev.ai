@@ -21,21 +21,19 @@ git stash  # if needed
 
 ### Clean dependencies before merge
 
-Remove all `package-lock.json` and `node_modules` to avoid massive diffs:
+Remove all `node_modules`, `package-lock.json`, and `dist` folders to avoid merge conflicts and stale artifacts:
 
 ```bash
-# Remove all package-lock.json files
-find . -name "package-lock.json" -not -path "./firecrawl/*" -delete
-
-# Remove all node_modules directories
-find . -name "node_modules" -type d -not -path "./firecrawl/*" -exec rm -rf {} + 2>/dev/null
-
-# Commit the removal
+npm run clean
 git add -A
-git commit -m "chore: remove package-lock.json before upstream merge"
+git commit -m "chore: clean before upstream merge"
 ```
 
-This ensures a clean `npm install` after merging generates fresh lock files.
+This script:
+- Removes all `node_modules` directories
+- Removes all `package-lock.json` files
+- Removes all `dist` directories
+- Excludes the `firecrawl/` submodule
 
 ## Merge Order
 
@@ -173,43 +171,44 @@ git commit -m "chore: merge upstream LibreChat"
 
 ## Step 4: Build and Verify
 
-### 4.1 Install dependencies
+### 4.1 Install dependencies and build
+
+After cleaning, reinstall and build everything:
+
+```bash
+npm run clean:build
+```
+
+Or manually:
 
 ```bash
 npm install
-```
-
-### 4.2 Build all packages
-
-```bash
-npm run frontend
-```
-
-This runs:
-- `build:data-provider`
-- `build:data-schemas`
-- `build:api`
-- `build:client-package`
-- `client build`
-
-### 4.3 Full soev.ai build (includes agents and admin)
-
-```bash
 npm run soev
 ```
 
-This additionally builds:
-- `build:agents`
-- `build:admin-plugin`
-- `build:admin-frontend`
+**What `npm install` does:**
+- Installs all dependencies for root, api, client, and packages/*
+- Generates fresh `package-lock.json` files
 
-### 4.4 Run linting
+**What `npm run soev` builds:**
+- `build:data-provider` - Data provider package
+- `build:data-schemas` - Schema definitions
+- `build:agents` - Agents package
+- `build:api` - API package
+- `build:client-package` - Client package
+- `build:admin-plugin` - Admin plugin
+- `build:admin-frontend` - Admin frontend
+- `client build` - Main client application
+
+> **Note:** Use `npm run soev` for full soev.ai builds. Use `npm run frontend` only if you don't need agents/admin packages rebuilt.
+
+### 4.2 Run linting
 
 ```bash
 npm run lint
 ```
 
-### 4.5 Run tests
+### 4.3 Run tests
 
 ```bash
 npm run test:client
@@ -300,9 +299,8 @@ If upstream agents has breaking changes:
 # Full upstream merge (all steps)
 
 # 0. Clean dependencies
-find . -name "package-lock.json" -not -path "./firecrawl/*" -delete
-find . -name "node_modules" -type d -not -path "./firecrawl/*" -exec rm -rf {} + 2>/dev/null
-git add -A && git commit -m "chore: remove package-lock.json before upstream merge"
+npm run clean
+git add -A && git commit -m "chore: clean before upstream merge"
 
 # 1. Firecrawl
 cd firecrawl && git pull origin main && cd ..
