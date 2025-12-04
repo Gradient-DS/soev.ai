@@ -1,5 +1,28 @@
 #!/bin/bash
 
+# Reference deployment directory structure:
+# /srv/soevai/
+# ├── config/              # Configuration files (from repo bundle)
+# │   ├── deploy-compose.soev.ai.yml
+# │   ├── nginx/
+# │   ├── monitoring/
+# │   └── *.yaml
+# ├── data/                # Persistent runtime data
+# │   ├── mongodb/
+# │   ├── meilisearch/
+# │   ├── uploads/
+# │   ├── logs/
+# │   └── images/
+# ├── secrets/             # Certificates and keys
+# │   ├── letsencrypt/
+# │   └── certbot-www/
+# └── .deployed-versions   # Deployment history
+
+DEPLOY_ROOT="/srv/soevai"
+CONFIG_DIR="$DEPLOY_ROOT/config"
+DATA_DIR="$DEPLOY_ROOT/data"
+SECRETS_DIR="$DEPLOY_ROOT/secrets"
+
 prepare_bundle() {
   local project_root="$1"
   local config_path="$2"
@@ -18,6 +41,11 @@ prepare_bundle() {
     exit 1
   fi
 
+  # Generate security.txt from template with correct domain
+  log_info "Generating security.txt for domain $DOMAIN..."
+  sed "s/SERVER_NAME_PLACEHOLDER/$DOMAIN/g" \
+    "$project_root/nginx/security.txt.tmpl" > "$bundle_dir/security.txt"
+
   tar -czf "$bundle_dir/deploy.tar.gz" \
     -C "$project_root" \
     deploy-compose.soev.ai.yml \
@@ -29,7 +57,9 @@ prepare_bundle() {
     monitoring/alertmanager/alertmanager.yml \
     monitoring/grafana/provisioning \
     monitoring/grafana/dashboards \
-    "$config_path"
+    "$config_path" \
+    -C "$bundle_dir" \
+    security.txt
 
   log_success "Bundle created: $bundle_dir/deploy.tar.gz"
 }
@@ -103,10 +133,14 @@ setup_bundle_and_env() {
     printf 'GF_SECURITY_ADMIN_USER=%q\n' "${GF_SECURITY_ADMIN_USER:-admin}"
     printf 'GF_SECURITY_ADMIN_PASSWORD=%q\n' "${GF_SECURITY_ADMIN_PASSWORD:-}"
     printf 'SLACK_WEBHOOK_URL=%q\n' "${SLACK_WEBHOOK_URL:-}"
+    # Reference deployment paths
+    printf 'DEPLOY_ROOT=%q\n' "$DEPLOY_ROOT"
+    printf 'CONFIG_DIR=%q\n' "$CONFIG_DIR"
+    printf 'DATA_DIR=%q\n' "$DATA_DIR"
+    printf 'SECRETS_DIR=%q\n' "$SECRETS_DIR"
   } > "$env_file"
 
-  log_info "Copying bundle to deployment directory..."
-  mkdir -p "$HOME/soevai"
+  log_info "Copying bundle to home directory..."
   cp "$project_root/deployment/bundle/deploy.tar.gz" "$HOME/deploy.tar.gz"
 
   log_success "Bundle and environment setup complete"
@@ -134,9 +168,22 @@ authenticate_ghcr() {
 
 start_application_stack() {
   set -euo pipefail
-  mkdir -p "$HOME/soevai" && cd "$HOME/soevai"
-  tar -xzf "$HOME/deploy.tar.gz"
   . "$HOME/.remote.env" || true
+
+  # Create reference deployment directory structure
+  log_info "Creating reference deployment directory structure..."
+  sudo mkdir -p "$CONFIG_DIR"
+  sudo mkdir -p "$DATA_DIR"/{mongodb,meilisearch,uploads,logs,images}
+  sudo mkdir -p "$SECRETS_DIR"/{letsencrypt,certbot-www,letsencrypt-log}
+  sudo chown -R deploy:deploy "$DEPLOY_ROOT"
+
+  # Extract config bundle
+  cd "$CONFIG_DIR"
+  tar -xzf "$HOME/deploy.tar.gz"
+
+  # Move security.txt to nginx directory
+  mv security.txt nginx/security.txt 2>/dev/null || true
+
   export HOST=0.0.0.0
   export PORT=3080
   export DOMAIN_CLIENT="https://$FQDN"
@@ -147,10 +194,10 @@ start_application_stack() {
 
   # Create SSL helper files before starting nginx (prevents crash on first deploy)
   log_info "Ensuring SSL helper files exist..."
-  sudo mkdir -p /srv/soevai/letsencrypt/live/$FQDN /srv/soevai/certbot-www
-  if [ ! -f /srv/soevai/letsencrypt/options-ssl-nginx.conf ]; then
+  sudo mkdir -p "$SECRETS_DIR/letsencrypt/live/$FQDN"
+  if [ ! -f "$SECRETS_DIR/letsencrypt/options-ssl-nginx.conf" ]; then
     log_info "Creating options-ssl-nginx.conf..."
-    sudo tee /srv/soevai/letsencrypt/options-ssl-nginx.conf >/dev/null <<'EOF'
+    sudo tee "$SECRETS_DIR/letsencrypt/options-ssl-nginx.conf" >/dev/null <<'EOF'
 ssl_protocols TLSv1.2 TLSv1.3;
 ssl_prefer_server_ciphers off;
 ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305;
@@ -159,16 +206,17 @@ ssl_session_cache shared:SSL:10m;
 ssl_session_tickets off;
 EOF
   fi
-  if [ ! -f /srv/soevai/letsencrypt/ssl-dhparams.pem ]; then
+  if [ ! -f "$SECRETS_DIR/letsencrypt/ssl-dhparams.pem" ]; then
     log_info "Generating DH parameters (this may take a moment)..."
-    sudo openssl dhparam -out /srv/soevai/letsencrypt/ssl-dhparams.pem 2048
+    sudo openssl dhparam -out "$SECRETS_DIR/letsencrypt/ssl-dhparams.pem" 2048
   fi
+
   # Create self-signed placeholder certificate if no real cert exists (allows nginx to start)
-  if [ ! -f "/srv/soevai/letsencrypt/live/$FQDN/fullchain.pem" ]; then
+  if [ ! -f "$SECRETS_DIR/letsencrypt/live/$FQDN/fullchain.pem" ]; then
     log_info "Creating self-signed placeholder certificate for $FQDN..."
     sudo openssl req -x509 -nodes -newkey rsa:2048 -days 1 \
-      -keyout "/srv/soevai/letsencrypt/live/$FQDN/privkey.pem" \
-      -out "/srv/soevai/letsencrypt/live/$FQDN/fullchain.pem" \
+      -keyout "$SECRETS_DIR/letsencrypt/live/$FQDN/privkey.pem" \
+      -out "$SECRETS_DIR/letsencrypt/live/$FQDN/fullchain.pem" \
       -subj "/CN=$FQDN" 2>/dev/null
     log_info "Placeholder certificate created (will be replaced by Let's Encrypt)"
   fi
@@ -176,6 +224,9 @@ EOF
   # Process nginx template with actual domain name
   log_info "Configuring nginx for domain $FQDN..."
   sed "s/SERVER_NAME_PLACEHOLDER/$FQDN/g" nginx/nginx.tmpl.conf > nginx/nginx-prod.conf
+
+  # Record deployed version
+  echo "$(date -Iseconds) | tag=$LIBRECHAT_TAG | domain=$FQDN" >> "$DEPLOY_ROOT/.deployed-versions"
 
   # Stop existing containers (preserves volumes and data)
   sudo docker compose --env-file "$HOME/.remote.env" -f deploy-compose.soev.ai.yml down 2>/dev/null || true
@@ -270,7 +321,7 @@ run_smoke_tests() {
 
 collect_logs() {
   set -euo pipefail
-  cd "$HOME/soevai"
+  cd "$CONFIG_DIR"
   echo "=== docker compose ps ==="; sudo docker compose -f deploy-compose.soev.ai.yml ps | cat
   echo
   echo "=== API logs: librechat_api (last 300) ==="; sudo docker logs --tail=300 librechat_api || true
@@ -289,4 +340,3 @@ collect_logs() {
   echo
   echo "=== All compose logs (last 200, all services) ==="; sudo docker compose -f deploy-compose.soev.ai.yml logs --no-color --tail=200 | cat || true
 }
-

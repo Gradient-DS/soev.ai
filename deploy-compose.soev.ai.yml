@@ -15,7 +15,7 @@ services:
     environment:
       SOEVAI_ROOT: /app
       CONFIG_PATH: /app/librechat.soev.ai.yaml
-      BASE_CONFIG_PATH: /app/soev.ai.yaml
+      BASE_CONFIG_PATH: /app/librechat.soev.ai.yaml
       HOST: 0.0.0.0
       PORT: 3080
       NODE_ENV: production
@@ -69,11 +69,12 @@ services:
 
       ENDPOINTS: ${ENDPOINTS}
     volumes:
-      - ./soev.ai.yaml:/app/soev.ai.yaml:ro
+      # App configuration (relative to compose file location in /srv/soevai/config/)
       - ./librechat.soev.ai.yaml:/app/librechat.soev.ai.yaml:rw
-      - ./images:/app/client/public/images
-      - ./uploads:/app/uploads
-      - ./logs:/app/api/logs
+      # Persistent data (absolute paths to /srv/soevai/data/)
+      - /srv/soevai/data/images:/app/client/public/images
+      - /srv/soevai/data/uploads:/app/uploads
+      - /srv/soevai/data/logs:/app/api/logs
 
   client:
     image: nginx:1.27.0-alpine
@@ -89,9 +90,13 @@ services:
       - metrics
     restart: always
     volumes:
+      # Nginx config (relative to compose file location in /srv/soevai/config/)
       - ./nginx/nginx-prod.conf:/etc/nginx/conf.d/default.conf
-      - /srv/soevai/certbot-www:/var/www/certbot
-      - /srv/soevai/letsencrypt:/etc/letsencrypt
+      - ./nginx/security.txt:/var/www/security/security.txt:ro
+      # Secrets (absolute paths to /srv/soevai/secrets/)
+      - /srv/soevai/secrets/certbot-www:/var/www/certbot
+      - /srv/soevai/secrets/letsencrypt:/etc/letsencrypt
+
   mongodb:
     container_name: chat-mongodb
     # ports:  # Uncomment this to access mongodb from outside docker, not safe in deployment
@@ -99,7 +104,8 @@ services:
     image: mongo
     restart: always
     volumes:
-      - ./data-node:/data/db
+      # Persistent data (absolute path)
+      - /srv/soevai/data/mongodb:/data/db
     command: ["mongod", "--bind_ip_all", "--noauth"]
 
   meilisearch:
@@ -113,7 +119,9 @@ services:
       - MEILI_NO_ANALYTICS=true
       - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
     volumes:
-      - ./meili_data_v1.12:/meili_data
+      # Persistent data (absolute path)
+      - /srv/soevai/data/meilisearch:/meili_data
+
   vectordb:
     image: pgvector/pgvector:0.8.0-pg15-trixie
     environment:
@@ -145,9 +153,10 @@ services:
     image: certbot/certbot:latest
     container_name: certbot-soevai
     volumes:
-      - /srv/soevai/letsencrypt:/etc/letsencrypt
-      - /srv/soevai/certbot-www:/var/www/certbot
-      - /srv/soevai/letsencrypt-log:/var/log/letsencrypt
+      # Secrets (absolute paths to /srv/soevai/secrets/)
+      - /srv/soevai/secrets/letsencrypt:/etc/letsencrypt
+      - /srv/soevai/secrets/certbot-www:/var/www/certbot
+      - /srv/soevai/secrets/letsencrypt-log:/var/log/letsencrypt
     entrypoint: >-
       /bin/sh -c '
         trap exit TERM;
@@ -168,6 +177,7 @@ services:
     container_name: prometheus-soevai
     restart: always
     volumes:
+      # Monitoring config (relative to compose file location)
       - ./monitoring/prometheus/prometheus-prod.yml:/etc/prometheus/prometheus.yml:ro
       - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus_data:/prometheus
@@ -190,6 +200,7 @@ services:
     container_name: alertmanager-soevai
     restart: always
     volumes:
+      # Monitoring config (relative to compose file location)
       - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - alertmanager_data:/alertmanager
     environment:
@@ -218,6 +229,7 @@ services:
     restart: always
     volumes:
       - grafana_data:/var/lib/grafana
+      # Monitoring config (relative to compose file location)
       - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
       - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
       - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro

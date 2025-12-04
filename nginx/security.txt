@@ -1,0 +1,15 @@
+# soev.ai Security Policy - RFC 9116 security.txt
+# For responsible disclosure of security vulnerabilities
+
+Canonical: https://soev.gradient-testing.nl/.well-known/security.txt
+
+Expires: 2026-12-31T23:59:59Z
+
+# Responsible disclosure policy
+Policy: https://soev.gradient-testing.nl/security-policy
+
+# Contact information for security issues
+Contact: mailto:lex@gradient-ds.com
+
+# Preferred languages for security reports
+Preferred-Languages: en, nl
