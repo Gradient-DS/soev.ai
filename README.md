@@ -1,3 +1,29 @@
+# soev.ai
+
+This is a fork of [LibreChat](https://github.com/danny-avila/LibreChat) with custom admin panel and additional features.
+
+## Admin Panel
+
+Access: Bottom-left settings menu → "Admin" (admin users only)
+
+### Features
+
+- **Users Tab**: Create, edit, delete users. Manage token balances.
+- **Features Tab**: Toggle feature permissions per role (ADMIN/USER):
+  - Prompt Library
+  - AI Agents
+  - Web Search
+  - Custom Welcome Message (text input)
+
+### How it works
+
+1. Feature permissions use LibreChat's native Role model (stored in MongoDB)
+2. Custom welcome message stored in AdminSettings collection
+3. Changes apply immediately - no restart needed
+4. Beautiful toggle switches for easy management
+
+---
+
 <p align="center">
   <a href="https://librechat.ai">
     <img src="client/public/assets/logo.svg" height="256">

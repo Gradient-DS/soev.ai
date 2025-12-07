@@ -1,8 +1,14 @@
 import express, { Router, Request, Response, NextFunction } from 'express';
-import { getOverrides, updateOverride } from '../services/configService';
 import path from 'path';
-import { resolveFromRoot } from '../utils/paths';
 import fs from 'fs';
+import { resolveFromRoot } from '../utils/paths';
+import {
+  getRolePermissions,
+  updateRolePermission,
+  getAllRolePermissions,
+  PERMISSION_FEATURES,
+  ROLES,
+} from '../services/configService';
 
 /**
  * Factory to build an Express router for the soev.ai admin plugin.
@@ -17,7 +23,7 @@ export function buildAdminRouter(
   // Importing enums/constants that are safe to resolve directly
   const { SystemRoles } = require('librechat-data-provider');
 
-  const protectedPaths = ['/health', '/config*', '/users*'];
+  const protectedPaths = ['/health', '/roles*', '/settings*', '/users*'];
 
   router.use(protectedPaths, (req: any, res: any, next: any) => {
     requireJwtAuth(req, res, (err?: any) => {
@@ -33,28 +39,25 @@ export function buildAdminRouter(
     try {
       if (!req.user) {
         const isHtmlRequest = req.headers.accept && req.headers.accept.includes('text/html');
-        
         if (isHtmlRequest) {
           return res.redirect('/login');
         } else {
           return res.status(401).json({ message: 'Authentication required' });
         }
       }
-      
+
       if (req.user.role !== SystemRoles.ADMIN) {
         const isHtmlRequest = req.headers.accept && req.headers.accept.includes('text/html');
-        
         if (isHtmlRequest) {
           return res.redirect('/login');
         } else {
           return res.status(403).json({ message: 'Forbidden' });
         }
       }
-      
+
       next();
     } catch (error) {
       const isHtmlRequest = req.headers.accept && req.headers.accept.includes('text/html');
-      
       if (isHtmlRequest) {
         return res.redirect('/login');
       } else {
@@ -63,64 +66,172 @@ export function buildAdminRouter(
     }
   });
 
+  // Health check
   router.get('/health', (_req, res) => {
     res.json({ plugin: 'soevai-admin', status: 'ok' });
   });
 
-  router.get('/config', async (req, res) => {
+  // ---------- Role Permission Endpoints ----------
+
+  // Get all role permissions with feature metadata
+  router.get('/roles/permissions', async (_req, res) => {
     try {
-      const overrides = await getOverrides();
-      res.json({ overrides });
+      const permissions = await getAllRolePermissions();
+      res.json({
+        permissions,
+        features: PERMISSION_FEATURES,
+        roles: ROLES,
+      });
     } catch (err: any) {
+      console.error('[admin/roles/permissions] get error', err);
       res.status(500).json({ message: err.message });
     }
   });
 
-  // Apply multiple overrides then restart
-  router.post('/config', async (req, res) => {
+  // Get permissions for a specific role
+  router.get('/roles/:roleName/permissions', async (req, res) => {
     try {
-      const { overrides } = req.body as { overrides: Record<string, unknown> };
-      if (!overrides || typeof overrides !== 'object') {
-        return res.status(400).json({ message: 'overrides object required' });
+      const { roleName } = req.params;
+      if (!ROLES.includes(roleName as any)) {
+        return res.status(400).json({ message: `Invalid role: ${roleName}` });
       }
-
-      const userId = req.user?.id;
-      const { updateOverride } = require('../services/configService');
-
-      /* ------------------------------------------------------------------ */
-      /* Flatten nested objects so the configService can validate using the */
-      /* dot.notation allow-list (e.g. "interface.customWelcome").         */
-      /* ------------------------------------------------------------------ */
-      const flatten = (obj: Record<string, any>, prefix = ''): Record<string, unknown> => {
-        return Object.keys(obj).reduce((acc: Record<string, unknown>, key) => {
-          const path = prefix ? `${prefix}.${key}` : key;
-          const val = obj[key];
-
-          if (val && typeof val === 'object' && !Array.isArray(val)) {
-            Object.assign(acc, flatten(val, path));
-          } else {
-            acc[path] = val;
-          }
-          return acc;
-        }, {});
-      };
-
-      const flatOverrides = flatten(overrides as Record<string, any>);
-
-      for (const [key, value] of Object.entries(flatOverrides)) {
-        await updateOverride(key, value, userId);
-      }
-
-      res.status(200).json({ message: 'Applied changes, restarting...' });
-
-      // Quit process after short delay so writes flush
-      setTimeout(() => process.exit(0), 100);
+      const permissions = await getRolePermissions(roleName);
+      res.json({ permissions });
     } catch (err: any) {
-      console.error('[admin/config] apply error', err);
-      res.status(500).json({ message: (err as Error).message });
+      console.error('[admin/roles/:roleName/permissions] get error', err);
+      res.status(500).json({ message: err.message });
     }
   });
-  
+
+  // Update a permission for a role
+  router.put('/roles/:roleName/permissions', async (req, res) => {
+    try {
+      const { roleName } = req.params;
+      const { permissionType, permission, value } = req.body;
+
+      if (!ROLES.includes(roleName as any)) {
+        return res.status(400).json({ message: `Invalid role: ${roleName}` });
+      }
+
+      if (!permissionType || !permission || typeof value !== 'boolean') {
+        return res.status(400).json({
+          message: 'Required: permissionType, permission, and value (boolean)',
+        });
+      }
+
+      await updateRolePermission(roleName, permissionType, permission, value);
+
+      // Return updated permissions
+      const permissions = await getRolePermissions(roleName);
+      res.json({
+        message: `Permission updated for ${roleName}`,
+        permissions,
+      });
+    } catch (err: any) {
+      console.error('[admin/roles/:roleName/permissions] update error', err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ---------- Admin Settings Endpoints (DB-first config) ----------
+  const {
+    getAllYamlDefaults,
+    getAdminSettings,
+    setAdminSetting,
+    revertToYamlDefault,
+    revertAllToYamlDefaults,
+    isAdminManagedKey,
+    ADMIN_MANAGED_KEYS,
+  } = require('../services/adminSettingsService');
+
+  // Get all admin settings with YAML defaults
+  router.get('/settings/all', async (_req, res) => {
+    try {
+      const settings = await getAdminSettings('global');
+      const defaults = await getAllYamlDefaults();
+      res.json({
+        settings: Object.fromEntries(settings),
+        defaults,
+        managedKeys: ADMIN_MANAGED_KEYS,
+      });
+    } catch (err: any) {
+      console.error('[admin/settings/all] get error', err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Get YAML defaults only - reads directly from app config
+  router.get('/settings/yamlDefaults', async (_req, res) => {
+    try {
+      // Get the app config which contains the YAML interface settings
+      const { getAppConfig } = require('~/server/services/Config/app');
+      const appConfig = await getAppConfig();
+      const interfaceConfig = appConfig?.interfaceConfig || {};
+
+      // Extract only the keys we manage
+      const defaults: Record<string, any> = {
+        prompts: interfaceConfig.prompts,
+        agents: interfaceConfig.agents,
+        webSearch: interfaceConfig.webSearch,
+      };
+
+      res.json({ defaults });
+    } catch (err: any) {
+      console.error('[admin/settings/yamlDefaults] get error', err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Update a specific interface setting
+  router.put('/settings/interface/:key', async (req: any, res) => {
+    try {
+      const { key } = req.params;
+      const { value, yamlDefault } = req.body;
+      const fullKey = `interface.${key}`;
+
+      if (!isAdminManagedKey(fullKey)) {
+        return res.status(400).json({ message: `Key not allowed: ${key}` });
+      }
+
+      await setAdminSetting(fullKey, value, yamlDefault, {
+        updatedBy: req.user?.id || null,
+      });
+
+      res.json({ key, value, success: true });
+    } catch (err: any) {
+      console.error('[admin/settings/interface/:key] update error', err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Revert a specific setting to YAML default
+  router.post('/settings/revert/:key', async (req, res) => {
+    try {
+      const { key } = req.params;
+      const fullKey = `interface.${key}`;
+
+      if (!isAdminManagedKey(fullKey)) {
+        return res.status(400).json({ message: `Key not allowed: ${key}` });
+      }
+
+      const newValue = await revertToYamlDefault(fullKey);
+      res.json({ key, value: newValue, reverted: true });
+    } catch (err: any) {
+      console.error('[admin/settings/revert/:key] error', err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Revert all settings to YAML defaults
+  router.post('/settings/revert-all', async (_req, res) => {
+    try {
+      await revertAllToYamlDefaults();
+      res.json({ success: true, message: 'All settings reverted to YAML defaults' });
+    } catch (err: any) {
+      console.error('[admin/settings/revert-all] error', err);
+      res.status(500).json({ message: err.message });
+    }
+  });
 
   // ---------- User Management Endpoints ----------
   const {
@@ -229,9 +340,8 @@ export function buildAdminRouter(
     }
   });
 
-  // Compute dist path relative to project root
+  // ---------- Static Frontend Serving ----------
   const distPath = resolveFromRoot('admin-frontend', 'dist');
-
   console.log('Admin frontend dist path:', distPath);
 
   // Serve React index for the base paths before static middleware

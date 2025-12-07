@@ -14,6 +14,44 @@ const { getMCPManager } = require('~/config');
 const { getLogStores } = require('~/cache');
 const { mcpServersRegistry } = require('@librechat/api');
 
+// soev.ai: Admin panel config overrides
+let getAdminConfigOverrides = null;
+try {
+  getAdminConfigOverrides =
+    require('../../packages/librechat-admin/dist/services/adminSettingsService').getAdminConfigOverrides;
+} catch (e) {
+  // Admin module not installed or not built - ignore
+}
+
+/**
+ * soev.ai: Apply admin panel overrides to config payload
+ * DB settings take precedence over YAML config
+ */
+const applyAdminOverrides = async (payload) => {
+  if (!getAdminConfigOverrides) return payload;
+  try {
+    const overrides = await getAdminConfigOverrides();
+    if (!overrides || overrides.size === 0) return payload;
+
+    // Deep clone to avoid mutation
+    const result = { ...payload };
+    if (!result.interface) result.interface = {};
+
+    // Apply overrides
+    for (const [key, value] of overrides) {
+      if (key.startsWith('interface.')) {
+        const interfaceKey = key.replace('interface.', '');
+        result.interface[interfaceKey] = value;
+      }
+    }
+
+    return result;
+  } catch (error) {
+    logger.warn('[config] Admin override error:', error.message);
+    return payload;
+  }
+};
+
 const router = express.Router();
 const emailLoginEnabled =
   process.env.ALLOW_EMAIL_LOGIN === undefined || isEnabled(process.env.ALLOW_EMAIL_LOGIN);
@@ -66,8 +104,10 @@ const getMCPServers = async (payload, appConfig) => {
 router.get('/', async function (req, res) {
   const cache = getLogStores(CacheKeys.CONFIG_STORE);
 
-  const cachedStartupConfig = await cache.get(CacheKeys.STARTUP_CONFIG);
+  let cachedStartupConfig = await cache.get(CacheKeys.STARTUP_CONFIG);
   if (cachedStartupConfig) {
+    // soev.ai: Apply admin panel overrides
+    cachedStartupConfig = await applyAdminOverrides(cachedStartupConfig);
     const appConfig = await getAppConfig({ role: req.user?.role });
     await getMCPServers(cachedStartupConfig, appConfig);
     res.send(cachedStartupConfig);
@@ -190,8 +230,10 @@ router.get('/', async function (req, res) {
     }
 
     await cache.set(CacheKeys.STARTUP_CONFIG, payload);
-    await getMCPServers(payload, appConfig);
-    return res.status(200).send(payload);
+    // soev.ai: Apply admin panel overrides before sending
+    const finalPayload = await applyAdminOverrides(payload);
+    await getMCPServers(finalPayload, appConfig);
+    return res.status(200).send(finalPayload);
   } catch (err) {
     logger.error('Error in startup config', err);
     return res.status(500).send({ error: err.message });

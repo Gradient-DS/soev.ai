@@ -388,12 +388,14 @@ const setAuthTokens = async (userId, res, _session = null) => {
       httpOnly: true,
       secure: isProduction,
       sameSite: 'strict',
+      path: '/',
     });
     res.cookie('token_provider', 'librechat', {
       expires: new Date(refreshTokenExpires),
       httpOnly: true,
       secure: isProduction,
       sameSite: 'strict',
+      path: '/',
     });
     return token;
   } catch (error) {
@@ -444,18 +446,21 @@ const setOpenIDAuthTokens = (tokenset, res, userId, existingRefreshToken) => {
       httpOnly: true,
       secure: isProduction,
       sameSite: 'strict',
+      path: '/',
     });
     res.cookie('openid_access_token', tokenset.access_token, {
       expires: expirationDate,
       httpOnly: true,
       secure: isProduction,
       sameSite: 'strict',
+      path: '/',
     });
     res.cookie('token_provider', 'openid', {
       expires: expirationDate,
       httpOnly: true,
       secure: isProduction,
       sameSite: 'strict',
+      path: '/',
     });
     if (userId && isEnabled(process.env.OPENID_REUSE_TOKENS)) {
       /** JWT-signed user ID cookie for image path validation when OPENID_REUSE_TOKENS is enabled */
@@ -467,6 +472,7 @@ const setOpenIDAuthTokens = (tokenset, res, userId, existingRefreshToken) => {
         httpOnly: true,
         secure: isProduction,
         sameSite: 'strict',
+        path: '/',
       });
     }
     return tokenset.access_token;

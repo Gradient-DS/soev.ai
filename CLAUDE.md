@@ -89,10 +89,15 @@ soev.ai/
 ```
 
 ### Admin Panel Architecture
-Three pieces work together:
-1. **packages/custom/mount.js** - Loaded by `api/server/index.js`, mounts custom routers
-2. **packages/librechat-admin/** - Express router with admin logic, exposes `buildAdminRouter()`
-3. **admin-frontend/** - React SPA served by admin router at `/admin`
+Simplified admin panel with 2 tabs (Users, Features):
+
+1. **packages/custom/mount.js** - Mounts admin router at `/admin`, provides `/api/reload` endpoint
+2. **packages/librechat-admin/** - Express router with user CRUD and role permission management
+3. **admin-frontend/** - React SPA with Users tab and Features tab
+
+**Feature permissions** (prompts, agents, webSearch) use LibreChat's native Role model in MongoDB.
+**Custom welcome** message stored in AdminSettings collection.
+Changes apply immediately - no restart required.
 
 ### Key Entry Points
 - `api/server/index.js` - Main backend entry, initializes Express app
@@ -101,9 +106,7 @@ Three pieces work together:
 
 ### Configuration Files
 - `.env` - Environment variables (copy from `soevai.env.example`)
-- `librechat.yaml` - Base runtime configuration
-- `librechat.merged.yaml` - Generated config (base + admin overrides)
-- `admin-overrides.yaml` - Admin panel settings (auto-generated)
+- `librechat.soev.ai.yaml` - Base runtime configuration
 
 ## Docker Compose Files
 - `docker-compose.dev.yml` - Dev services (MongoDB, MeiliSearch, RAG, Ollama)

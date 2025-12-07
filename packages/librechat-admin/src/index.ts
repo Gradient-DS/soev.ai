@@ -1,15 +1,9 @@
 /**
- * Admin plugin initialization
+ * soev.ai Admin Plugin
+ *
+ * Simplified admin panel for:
+ * - User management (CRUD, token balance)
+ * - Feature flags (prompts, agents, customWelcome, webSearch) per role
  */
-import { generateMergedYaml } from './services/generateMergedConfig';
 
 export { buildAdminRouter } from './router';
-
-// Initialize admin configuration on module load
-(async () => {
-  try {
-    await generateMergedYaml({ preStartup: true });
-  } catch (error) {
-    // Silently fail during initialization
-  }
-})(); 
