@@ -234,11 +234,148 @@ services:
     networks:
       - internal
 
+  ## AIRWEAVE STACK - Document retrieval from SharePoint/OneDrive
+  airweave-backend:
+    image: ghcr.io/gradient-ds/airweave-backend:latest
+    container_name: airweave-backend
+    platform: linux/amd64
+    restart: unless-stopped
+    depends_on:
+      - airweave-db
+      - airweave-qdrant
+      - airweave-redis
+      - airweave-temporal
+    environment:
+      # PostgreSQL connection (Airweave expects individual vars)
+      POSTGRES_HOST: airweave-db
+      POSTGRES_USER: airweave
+      POSTGRES_PASSWORD: ${AIRWEAVE_DB_PASSWORD:-airweave}
+      POSTGRES_DB: airweave
+      POSTGRES_PORT: "5432"
+      # Initial superuser (required for first run)
+      FIRST_SUPERUSER: ${AIRWEAVE_ADMIN_EMAIL:-admin@soev.ai}
+      FIRST_SUPERUSER_PASSWORD: ${AIRWEAVE_ADMIN_PASSWORD:-changeme123}
+      # Redis connection (both URL and individual vars for compatibility)
+      REDIS_URL: redis://airweave-redis:6379
+      REDIS_HOST: airweave-redis
+      REDIS_PORT: "6379"
+      # Qdrant connection (both URL and individual vars for compatibility)
+      QDRANT_URL: http://airweave-qdrant:6333
+      QDRANT_HOST: airweave-qdrant
+      QDRANT_PORT: "6333"
+      # Temporal workflow engine
+      TEMPORAL_HOST: airweave-temporal
+      TEMPORAL_PORT: "7233"
+      # Security
+      ENCRYPTION_KEY: ${AIRWEAVE_ENCRYPTION_KEY}
+      STATE_SECRET: ${AIRWEAVE_STATE_SECRET}
+      # Custom embeddings endpoint (OpenAI-compatible)
+      OPENAI_API_KEY: ${AIRWEAVE_EMBEDDINGS_API_KEY}
+      OPENAI_BASE_URL: ${AIRWEAVE_EMBEDDINGS_BASE_URL}
+      EMBEDDING_MODEL: ${AIRWEAVE_EMBEDDINGS_MODEL:-intfloat/multilingual-e5-large-instruct}
+      EMBEDDING_DIM: ${AIRWEAVE_EMBEDDING_DIM:-1024}
+      # Microsoft Entra App credentials (for OneDrive/SharePoint)
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID}
+      AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET}
+
+      USE_SIMPLE_PARSING: ${USE_SIMPLE_PARSING:-true}
+    ports:
+      - "8001:8001"
+    networks:
+      - internal
+
+  airweave-db:
+    image: postgres:15
+    container_name: airweave-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: airweave
+      POSTGRES_PASSWORD: ${AIRWEAVE_DB_PASSWORD:-airweave}
+      POSTGRES_DB: airweave
+    volumes:
+      - airweave_postgres_data:/var/lib/postgresql/data
+    networks:
+      - internal
+
+  airweave-qdrant:
+    image: qdrant/qdrant:latest
+    container_name: airweave-qdrant
+    restart: unless-stopped
+    volumes:
+      - airweave_qdrant_data:/qdrant/storage
+    networks:
+      - internal
+
+  airweave-redis:
+    image: redis:7-alpine
+    container_name: airweave-redis
+    restart: unless-stopped
+    networks:
+      - internal
+
+  airweave-temporal:
+    image: temporalio/auto-setup:latest
+    container_name: airweave-temporal
+    restart: unless-stopped
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=airweave
+      - POSTGRES_PWD=${AIRWEAVE_DB_PASSWORD:-airweave}
+      - POSTGRES_SEEDS=airweave-db
+      - SKIP_DEFAULT_NAMESPACE_CREATION=false
+    depends_on:
+      - airweave-db
+    ports:
+      - "7233:7233"
+    networks:
+      - internal
+
+  airweave-worker:
+    image: ghcr.io/gradient-ds/airweave-backend:latest
+    container_name: airweave-worker
+    platform: linux/amd64
+    restart: unless-stopped
+    entrypoint: ["/bin/bash", "-c", "poetry run python -m airweave.platform.temporal.worker"]
+    depends_on:
+      - airweave-db
+      - airweave-qdrant
+      - airweave-redis
+      - airweave-temporal
+    environment:
+      POSTGRES_HOST: airweave-db
+      POSTGRES_USER: airweave
+      POSTGRES_PASSWORD: ${AIRWEAVE_DB_PASSWORD:-airweave}
+      POSTGRES_DB: airweave
+      POSTGRES_PORT: "5432"
+      FIRST_SUPERUSER: ${AIRWEAVE_ADMIN_EMAIL:-admin@soev.ai}
+      FIRST_SUPERUSER_PASSWORD: ${AIRWEAVE_ADMIN_PASSWORD:-changeme123}
+      REDIS_HOST: airweave-redis
+      REDIS_PORT: "6379"
+      QDRANT_HOST: airweave-qdrant
+      QDRANT_PORT: "6333"
+      TEMPORAL_HOST: airweave-temporal
+      TEMPORAL_PORT: "7233"
+      ENCRYPTION_KEY: ${AIRWEAVE_ENCRYPTION_KEY}
+      STATE_SECRET: ${AIRWEAVE_STATE_SECRET}
+      OPENAI_API_KEY: ${AIRWEAVE_EMBEDDINGS_API_KEY}
+      OPENAI_BASE_URL: ${AIRWEAVE_EMBEDDINGS_BASE_URL}
+      EMBEDDING_MODEL: ${AIRWEAVE_EMBEDDINGS_MODEL:-intfloat/multilingual-e5-large-instruct}
+      EMBEDDING_DIM: ${AIRWEAVE_EMBEDDING_DIM:-1024}
+
+      USE_SIMPLE_PARSING: ${USE_SIMPLE_PARSING:-true}
+
+    networks:
+      - internal
+
 
 volumes:
   pgdata2:
   prometheus_data:
   alertmanager_data:
   grafana_data:
+  airweave_postgres_data:
+  airweave_qdrant_data:
 
   # ollama: 

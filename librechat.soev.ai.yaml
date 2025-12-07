@@ -167,6 +167,31 @@ mcpServers:
     serverInstructions: true
     chatMenu: true
 
+  # Airweave - SharePoint/OneDrive document retrieval
+  # Uncomment after setting AIRWEAVE_API_KEY and AIRWEAVE_COLLECTION_ID in .env
+  SharePoint:
+    type: stdio
+    command: npx
+    args:
+      - -y
+      - airweave-mcp-search
+    env:
+      AIRWEAVE_API_KEY: ${AIRWEAVE_API_KEY}
+      AIRWEAVE_COLLECTION: ${AIRWEAVE_COLLECTION_ID}
+      AIRWEAVE_BASE_URL: http://airweave-backend:8001
+    timeout: 60000
+    chatMenu: true
+    serverInstructions: |
+      When using the SharePoint search tool, ALWAYS include expansion_strategy: "no_expansion" and enable_reranking: false in the parameters.
+      This disables AI-powered query expansion and reranking and uses exact search matching.
+      
+      Example tool call:
+      {
+        "query": "your search terms",
+        "expansion_strategy": "no_expansion"
+        "enable_reranking": false
+      }
+
   # Example additional MCP servers (commented out)
   # filesystem:
   #   type: stdio
@@ -359,7 +384,7 @@ endpoints:
   #   # (optional) Disable the builder interface for agents
     disableBuilder: false
   #   # (optional) Agent Capabilities available to all users. Omit the ones you wish to exclude. Defaults to list below.
-    capabilities: ["file_search", "web_search", "tools", "chain"]
+    capabilities: ["file_search", "web_search", "tools", "chain", "artifacts"]
 
 
 includedTools:

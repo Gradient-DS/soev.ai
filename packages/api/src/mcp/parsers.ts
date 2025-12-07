@@ -263,17 +263,35 @@ export function formatToolContent(
   };
 
   for (const item of content) {
+    console.log('[MCP parsers] Processing content item:', {
+      itemType: item.type,
+      itemKeys: Object.keys(item),
+    });
     const handler = contentHandlers[item.type as keyof typeof contentHandlers] as ContentHandler;
     if (handler) {
+      console.log('[MCP parsers] Found handler for type:', item.type);
       handler(item as never);
+      console.log('[MCP parsers] After handler, currentTextBlock length:', currentTextBlock.length);
     } else {
+      console.log('[MCP parsers] No handler found, stringifying item');
       const stringified = JSON.stringify(item, null, 2);
       currentTextBlock += (currentTextBlock ? '\n\n' : '') + stringified;
     }
   }
 
+  console.log('[MCP parsers] After loop, before push check:', {
+    treatAsArray,
+    currentTextBlockLength: currentTextBlock.length,
+    currentTextBlockTruthy: !!currentTextBlock,
+    formattedContentLengthBefore: formattedContent.length,
+  });
+
   if (treatAsArray && currentTextBlock) {
+    console.log('[MCP parsers] Pushing currentTextBlock to formattedContent');
     formattedContent.push({ type: 'text', text: currentTextBlock });
+    console.log('[MCP parsers] After push, formattedContent length:', formattedContent.length);
+  } else {
+    console.log('[MCP parsers] NOT pushing - treatAsArray:', treatAsArray, 'currentTextBlock truthy:', !!currentTextBlock);
   }
 
   if (imageUrls.length || uiResources.length) {
@@ -294,10 +312,23 @@ export function formatToolContent(
   });
 
   if (treatAsArray) {
-    console.log('[MCP parsers] Returning array content');
+    // Safety check: if formattedContent is empty but we have currentTextBlock, add it
+    // This handles edge cases where the push condition might have failed unexpectedly
+    if (formattedContent.length === 0 && currentTextBlock) {
+      console.log('[MCP parsers] Safety: formattedContent empty but currentTextBlock has content, adding it');
+      formattedContent.push({ type: 'text', text: currentTextBlock });
+    }
+
+    // If still empty, add a placeholder to prevent API errors
+    if (formattedContent.length === 0) {
+      console.log('[MCP parsers] Safety: formattedContent still empty, adding placeholder');
+      formattedContent.push({ type: 'text', text: '(No text content returned from tool)' });
+    }
+
+    console.log('[MCP parsers] Returning array content, length:', formattedContent.length);
     return [formattedContent, artifacts];
   }
 
   console.log('[MCP parsers] Returning text block');
-  return [currentTextBlock, artifacts];
+  return [currentTextBlock || '(No response)', artifacts];
 }
