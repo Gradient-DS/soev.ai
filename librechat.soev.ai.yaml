@@ -41,13 +41,13 @@ interface:
   sidePanel: true
   presets: false
   prompts: true
+  agents: true
+  webSearch: true
   bookmarks: true
   multiConvo: false
-  agents: true
   fileCitations: true
   memories: false
   fileSearch: true
-  webSearch: true
   marketplace: 
     use: false
   # Temporary chat retention period in hours (default: 720, min: 1, max: 8760)

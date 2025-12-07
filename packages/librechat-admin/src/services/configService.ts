@@ -1,173 +1,120 @@
-import fs from 'fs';
-import path from 'path';
-import { resolveFromRoot } from '../utils/paths';
-import yaml from 'js-yaml';
-import _ from 'lodash';
-import mongoose from 'mongoose';
-import AdminConfig from '../models/AdminConfig';
-import { generateMergedYaml } from './generateMergedConfig';
+import AdminSettings from '../models/AdminSettings';
 
-export const ALLOW_LIST = [
-  // Interface feature toggles
-  'interface.customWelcome',
-  'interface.modelSelect',
-  'interface.parameters',
-  'interface.sidePanel',
-  'interface.presets',
-  'interface.prompts',
-  'interface.memories',
-  'interface.bookmarks',
-  'interface.multiConvo',
-  'interface.agents',
-  'interface.endpointsMenu',
-  // Site branding & text / images
-  'appTitle',
-  'helpAndFaqURL',
-  'customFooter',
-  'logoUrl',
-  'faviconUrl',
-  'backgroundImageUrl',
-  // Legal & compliance objects
-  'privacyPolicy',
-  'termsOfService',
-  // Model access toggles within interface section
-  'interface.webSearch',
-  'interface.runCode',
-  // Conversation settings
-  'interface.temporaryChat',
-  // Agents endpoint settings
-  'endpoints.agents.recursionLimit',
-  'endpoints.agents.maxRecursionLimit',
-  'endpoints.agents.disableBuilder',
-  'endpoints.agents.capabilities',
-  'endpoints.agents.allowedProviders',
-  // Sharing / public links
-  'sharedLinksEnabled',
-  'publicSharedLinksEnabled',
-  // Actions (OpenAPI specs)
-  'actions.allowedDomains',
-  // Temporary chat retention
-  'interface.temporaryChatRetention',
-  // Balance system
-  'balance.enabled',
-  'balance.startBalance',
-  'balance.autoRefillEnabled',
-  'balance.refillIntervalValue',
-  'balance.refillIntervalUnit',
-  'balance.refillAmount',
-  // Memory settings
-  'memory.disabled',
-  'memory.validKeys',
-  'memory.tokenLimit',
-  'memory.personalize',
-  'memory.agent.id',
-  // Custom endpoints
-  'endpoints.custom',
-  // Plugins endpoint & Beta features
-  'interface.plugins',
-];
+// Feature permission types that map to LibreChat Role permissions
+// NOTE: LibreChat uses UPPERCASE keys for permission types and permissions
+export const PERMISSION_FEATURES = [
+  {
+    id: 'PROMPTS' as const,
+    type: 'PROMPTS',
+    permission: 'USE',
+    label: 'Prompt Library',
+    description: 'Access to shared prompt templates',
+  },
+  {
+    id: 'AGENTS' as const,
+    type: 'AGENTS',
+    permission: 'USE',
+    label: 'AI Agents',
+    description: 'Create and use AI agents',
+  },
+  {
+    id: 'WEB_SEARCH' as const,
+    type: 'WEB_SEARCH',
+    permission: 'USE',
+    label: 'Web Search',
+    description: 'Search the web during conversations',
+  },
+] as const;
 
-const PROJECT_ROOT = resolveFromRoot();
+export type FeatureId = typeof PERMISSION_FEATURES[number]['id'];
 
-export const OVERLAY_PATH = process.env.ADMIN_OVERLAY_PATH || path.join(PROJECT_ROOT, 'admin-overrides.yaml');
+// Roles that can have feature overrides
+export const ROLES = ['ADMIN', 'USER'] as const;
+export type Role = typeof ROLES[number];
 
-async function ensureDbConnection(): Promise<void> {
-  if (mongoose.connection.readyState === 1) return;
-  await new Promise<void>((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error('MongoDB connection timeout')), 10000);
-    const check = (): void => {
-      if (mongoose.connection.readyState === 1) {
-        clearTimeout(timeout);
-        resolve();
-      } else {
-        setTimeout(check, 100);
-      }
-    };
-    check();
+/**
+ * Get LibreChat's Role functions using module-alias path.
+ *
+ * NOTE: This module is loaded AFTER api/server/index.js initializes module-alias,
+ * so we can use the '~/' prefix to reference api/ modules cleanly.
+ * The '~' alias points to the api/ folder.
+ */
+function getRoleFunctions() {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const roleModule = require('~/models/Role');
+  return {
+    getRoleByName: roleModule.getRoleByName as (
+      roleName: string,
+      fieldsToSelect?: string | string[]
+    ) => Promise<any>,
+    updateAccessPermissions: roleModule.updateAccessPermissions as (
+      roleName: string,
+      permissionsUpdate: Record<string, Record<string, boolean>>,
+      roleData?: any
+    ) => Promise<void>,
+  };
+}
+
+/**
+ * Get all permissions for a role
+ */
+export async function getRolePermissions(roleName: string): Promise<Record<string, any>> {
+  const { getRoleByName } = getRoleFunctions();
+  const role = await getRoleByName(roleName);
+  return role?.permissions || {};
+}
+
+/**
+ * Update a single permission for a role
+ * Also marks this setting in AdminSettings so it won't be overwritten by YAML on restart
+ */
+export async function updateRolePermission(
+  roleName: string,
+  permissionType: string,
+  permission: string,
+  value: boolean
+): Promise<void> {
+  const { updateAccessPermissions } = getRoleFunctions();
+  await updateAccessPermissions(roleName, {
+    [permissionType]: { [permission]: value },
   });
-}
 
-async function getOverrideDoc() {
-  await ensureDbConnection();
-  let doc = await AdminConfig.findOne().sort({ updatedAt: -1 });
-  if (!doc) {
-    doc = await AdminConfig.create({ overrides: {} });
+  // Map permission type to AdminSettings key
+  const keyMap: Record<string, string> = {
+    PROMPTS: 'interface.prompts',
+    AGENTS: 'interface.agents',
+    WEB_SEARCH: 'interface.webSearch',
+  };
+
+  const adminKey = keyMap[permissionType];
+  if (adminKey) {
+    // Mark this permission as admin-managed so it survives restart
+    // We store the value (true = enabled, false = disabled)
+    await AdminSettings.findOneAndUpdate(
+      { key: adminKey, scope: 'global', scopeId: null },
+      {
+        key: adminKey,
+        value,
+        source: 'admin',
+        scope: 'global',
+        scopeId: null,
+      },
+      { upsert: true }
+    );
   }
-  return doc;
 }
 
-export async function getOverrides() {
-  const doc = await getOverrideDoc();
-  return doc.overrides || {};
-}
-
-export async function updateOverride(key: string, value: unknown, userId?: string) {
-  if (!ALLOW_LIST.includes(key)) {
-    const err: any = new Error(`Key '${key}' not allowed`);
-    err.status = 400;
-    throw err;
-  }
-
-  const doc = await getOverrideDoc();
-  // Basic type coercion for known numeric and array settings
-  const numericKeys = new Set([
-    'endpoints.agents.recursionLimit',
-    'endpoints.agents.maxRecursionLimit',
-    'interface.temporaryChatRetention',
-    'balance.startBalance',
-    'balance.refillIntervalValue',
-    'balance.refillAmount',
-    'memory.tokenLimit',
+/**
+ * Get all permissions for both ADMIN and USER roles
+ */
+export async function getAllRolePermissions(): Promise<Record<Role, Record<string, any>>> {
+  const [adminPerms, userPerms] = await Promise.all([
+    getRolePermissions('ADMIN'),
+    getRolePermissions('USER'),
   ]);
 
-  const arrayKeys = new Set([
-    'endpoints.agents.capabilities',
-    'endpoints.agents.allowedProviders',
-    'actions.allowedDomains',
-    'memory.validKeys',
-  ]);
-
-  let coercedValue: unknown = value;
-
-  if (numericKeys.has(key)) {
-    coercedValue = typeof value === 'string' ? Number(value) : value;
-  } else if (arrayKeys.has(key)) {
-    if (typeof value === 'string') {
-      coercedValue = value
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean);
-    }
-  }
-
-  _.set(doc.overrides, key, coercedValue);
-  // Inform Mongoose that a Mixed type field was mutated in place
-  doc.markModified('overrides');
-  doc.updatedBy = userId as any;
-  doc.updatedAt = new Date();
-
-  await doc.save();
-  await writeOverlayYaml(doc.overrides);
-  
-  // Filter out auth fields for LibreChat merged config too
-  const cleanOverrides = _.cloneDeep(doc.overrides);
-  delete cleanOverrides.auth;
-  await generateMergedYaml({ overrides: cleanOverrides });
-
-  return doc.overrides;
-}
-
-
-function writeOverlayYaml(overrides: Record<string, unknown>): Promise<void> {
-  return new Promise((resolve, reject) => {
-    // Filter out auth.* fields from YAML output - these are only for admin panel control
-    const cleanOverrides = _.cloneDeep(overrides);
-    delete cleanOverrides.auth; // Remove entire auth section
-    
-    const yamlStr = yaml.dump(cleanOverrides, { lineWidth: 120 });
-    fs.writeFile(OVERLAY_PATH, yamlStr, 'utf8', (err) => {
-      if (err) return reject(err);
-      resolve();
-    });
-  });
+  return {
+    ADMIN: adminPerms,
+    USER: userPerms,
+  };
 }

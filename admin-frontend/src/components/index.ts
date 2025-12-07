@@ -1,7 +1,5 @@
-export { AdminHeader } from './AdminHeader';
-export { AdminLayout } from './AdminLayout';
-export { SettingsSection } from './SettingsSection';
 export { UserModal } from './UserModal';
-export { RestartingOverlay } from './RestartingOverlay';
-export { ConfirmUnsavedModal } from './ConfirmUnsavedModal';
-export { AgentCapabilities } from './AgentCapabilities'; 
+export { default as CreateUserModal } from './CreateUserModal';
+export { default as UsersSection } from './UsersSection';
+export { default as FeaturesTab } from './FeaturesTab';
+export { default as Toggle } from './Toggle';

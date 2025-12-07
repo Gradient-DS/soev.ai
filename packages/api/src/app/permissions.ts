@@ -10,6 +10,35 @@ import type { IRole, AppConfig } from '@librechat/data-schemas';
 import { isMemoryEnabled } from '~/memory/config';
 
 /**
+ * soev.ai: Check if admin panel has an override for this permission
+ * If an admin override exists, we should NOT let YAML overwrite it
+ */
+async function hasAdminOverride(permissionType: PermissionTypes): Promise<boolean> {
+  try {
+    // Lazy require to avoid circular dependencies and missing module errors
+    const AdminSettings =
+      require('../../../packages/librechat-admin/dist/models/AdminSettings').default;
+    const keyMap: Record<string, string> = {
+      [PermissionTypes.PROMPTS]: 'interface.prompts',
+      [PermissionTypes.AGENTS]: 'interface.agents',
+      [PermissionTypes.WEB_SEARCH]: 'interface.webSearch',
+    };
+    const key = keyMap[permissionType];
+    if (!key) return false;
+
+    const setting = await AdminSettings.findOne({
+      key,
+      scope: 'global',
+      source: 'admin', // Only count explicit admin changes
+    }).lean();
+    return !!setting;
+  } catch (error) {
+    // Admin module not installed or DB error - fail safe
+    return false;
+  }
+}
+
+/**
  * Checks if a permission type has explicit configuration
  */
 function hasExplicitConfig(
@@ -142,26 +171,31 @@ export async function updateInterfacePermissions({
 
     /**
      * Helper to add permission if it should be updated
+     * soev.ai: Made async to check for admin overrides
      */
-    const addPermissionIfNeeded = (
+    const addPermissionIfNeeded = async (
       permType: PermissionTypes,
       permissions: Record<string, boolean | undefined>,
     ) => {
       const permTypeExists = existingPermissions?.[permType];
       const isExplicitlyConfigured =
         interfaceConfig && hasExplicitConfig(interfaceConfig, permType);
+
+      // soev.ai: Check for admin override - if exists, skip YAML override
+      const adminOverride = await hasAdminOverride(permType);
+
       const isMemoryDisabled = permType === PermissionTypes.MEMORIES && isMemoryExplicitlyDisabled;
       const isMemoryReenabling =
         permType === PermissionTypes.MEMORIES &&
         shouldEnableMemory &&
         existingPermissions?.[PermissionTypes.MEMORIES]?.[Permissions.USE] === false;
 
-      // Only update if: doesn't exist OR explicitly configured OR memory state change
-      if (!permTypeExists || isExplicitlyConfigured || isMemoryDisabled || isMemoryReenabling) {
+      // Only update if: doesn't exist OR (explicitly configured AND no admin override) OR memory state change
+      if (!permTypeExists || (isExplicitlyConfigured && !adminOverride) || isMemoryDisabled || isMemoryReenabling) {
         permissionsToUpdate[permType] = permissions;
         if (!permTypeExists) {
           logger.debug(`Role '${roleName}': Setting up default permissions for '${permType}'`);
-        } else if (isExplicitlyConfigured) {
+        } else if (isExplicitlyConfigured && !adminOverride) {
           logger.debug(`Role '${roleName}': Applying explicit config for '${permType}'`);
         } else if (isMemoryDisabled) {
           logger.debug(`Role '${roleName}': Disabling memories as memory.disabled is true`);
@@ -170,6 +204,8 @@ export async function updateInterfacePermissions({
             `Role '${roleName}': Re-enabling memories due to valid memory configuration`,
           );
         }
+      } else if (adminOverride) {
+        logger.debug(`Role '${roleName}': Preserving admin override for '${permType}'`);
       } else {
         logger.debug(`Role '${roleName}': Preserving existing permissions for '${permType}'`);
       }
@@ -314,9 +350,9 @@ export async function updateInterfacePermissions({
       },
     };
 
-    // Check and add each permission type if needed
+    // Check and add each permission type if needed (soev.ai: now async)
     for (const [permType, permissions] of Object.entries(allPermissions)) {
-      addPermissionIfNeeded(permType as PermissionTypes, permissions);
+      await addPermissionIfNeeded(permType as PermissionTypes, permissions);
     }
 
     // Update permissions if any need updating

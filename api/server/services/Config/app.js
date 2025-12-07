@@ -56,15 +56,6 @@ async function getAppConfig(options = {}) {
     await cache.set(BASE_CONFIG_KEY, baseConfig);
   }
 
-  // For now, return the base config
-  // In the future, this is where we'll apply role-based modifications
-  if (role) {
-    // TODO: Apply role-based config modifications
-    // const roleConfig = await applyRoleBasedConfig(baseConfig, role);
-    // await cache.set(cacheKey, roleConfig);
-    // return roleConfig;
-  }
-
   return baseConfig;
 }
 
