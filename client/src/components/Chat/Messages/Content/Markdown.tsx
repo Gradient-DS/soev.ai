@@ -2,6 +2,8 @@ import React, { memo, useMemo } from 'react';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import supersub from 'remark-supersub';
+import rehypeRaw from 'rehype-raw';
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import rehypeKatex from 'rehype-katex';
 import { useRecoilValue } from 'recoil';
 import ReactMarkdown from 'react-markdown';
@@ -22,6 +24,24 @@ type TContentProps = {
   isLatestMessage: boolean;
 };
 
+const sanitizeSchema = {
+  ...defaultSchema,
+  tagNames: [
+    ...(defaultSchema.tagNames || []),
+    'br',
+    'em',
+    'strong',
+    'b',
+    'i',
+    'u',
+    's',
+    'sub',
+    'sup',
+    'mark',
+    'small',
+  ],
+};
+
 const Markdown = memo(({ content = '', isLatestMessage }: TContentProps) => {
   const LaTeXParsing = useRecoilValue<boolean>(store.LaTeXParsing);
   const isInitializing = content === '';
@@ -35,6 +55,8 @@ const Markdown = memo(({ content = '', isLatestMessage }: TContentProps) => {
 
   const rehypePlugins = useMemo(
     () => [
+      [rehypeRaw],
+      [rehypeSanitize, sanitizeSchema],
       [rehypeKatex],
       [
         rehypeHighlight,

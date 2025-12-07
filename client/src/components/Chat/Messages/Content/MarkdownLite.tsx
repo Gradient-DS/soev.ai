@@ -1,6 +1,8 @@
 import { memo } from 'react';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
+import rehypeRaw from 'rehype-raw';
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import rehypeKatex from 'rehype-katex';
 import supersub from 'remark-supersub';
 import ReactMarkdown from 'react-markdown';
@@ -11,9 +13,29 @@ import { CodeBlockProvider, ArtifactProvider } from '~/Providers';
 import MarkdownErrorBoundary from './MarkdownErrorBoundary';
 import { langSubset } from '~/utils';
 
+const sanitizeSchema = {
+  ...defaultSchema,
+  tagNames: [
+    ...(defaultSchema.tagNames || []),
+    'br',
+    'em',
+    'strong',
+    'b',
+    'i',
+    'u',
+    's',
+    'sub',
+    'sup',
+    'mark',
+    'small',
+  ],
+};
+
 const MarkdownLite = memo(
   ({ content = '', codeExecution = true }: { content?: string; codeExecution?: boolean }) => {
     const rehypePlugins: PluggableList = [
+      [rehypeRaw],
+      [rehypeSanitize, sanitizeSchema],
       [rehypeKatex],
       [
         rehypeHighlight,

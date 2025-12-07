@@ -51,3 +51,14 @@ scrape_configs:
         labels:
           environment: 'development'
           service: 'librechat'
+
+  # soev-rag metrics (RAG API with Weaviate backend)
+  - job_name: 'soev-rag'
+    scrape_interval: 60s
+    scrape_timeout: 30s
+    metrics_path: '/metrics/prometheus'
+    static_configs:
+      - targets: ['rag_api:8100']
+        labels:
+          environment: 'development'
+          service: 'soev-rag'

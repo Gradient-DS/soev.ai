@@ -94,3 +94,55 @@ groups:
     annotations:
       summary: "Prometheus target down"
       description: "Target {{ $labels.job }}/{{ $labels.instance }} is down"
+
+- name: soev-rag
+  rules:
+  # RAG API down
+  - alert: SoevRagApiDown
+    expr: up{job="soev-rag"} == 0
+    for: 2m
+    labels:
+      severity: critical
+    annotations:
+      summary: "soev-rag API is down"
+      description: "The soev-rag API has been unreachable for more than 2 minutes"
+
+  # Weaviate connection lost
+  - alert: WeaviateConnectionDown
+    expr: soev_rag_weaviate_up == 0
+    for: 2m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Weaviate connection lost"
+      description: "soev-rag cannot connect to Weaviate for more than 2 minutes"
+
+  # SharePoint sync failed
+  - alert: SharePointSyncFailed
+    expr: soev_rag_sharepoint_sync_success == 0
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "SharePoint sync failed"
+      description: "The last SharePoint sync operation failed"
+
+  # SharePoint sync stale (no sync in 2 hours)
+  - alert: SharePointSyncStale
+    expr: time() - soev_rag_sharepoint_last_sync_timestamp > 7200
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "SharePoint sync is stale"
+      description: "No SharePoint sync has completed in the last 2 hours"
+
+  # High parsing latency
+  - alert: HighParsingLatency
+    expr: max(soev_rag_parsing_seconds_p95) > 5
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High document parsing latency"
+      description: "P95 parsing time exceeds 5 seconds for some file types"
