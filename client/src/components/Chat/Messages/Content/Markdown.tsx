@@ -31,12 +31,19 @@ const Markdown = memo(({ content = '', isLatestMessage }: TContentProps) => {
     if (isInitializing) {
       return '';
     }
-    return LaTeXParsing ? preprocessLaTeX(content) : content;
+    const processed = LaTeXParsing ? preprocessLaTeX(content) : content;
+    // Debug: check for citation markers
+    const hasMarkers = /[\ue200-\ue206]/.test(processed);
+    if (hasMarkers) {
+      console.log('[Markdown] Content has citation markers, length:', processed.length);
+      console.log('[Markdown] First 500 chars:', processed.slice(0, 500));
+    }
+    return processed;
   }, [content, LaTeXParsing, isInitializing]);
 
   const rehypePlugins = useMemo(
     () => [
-      [rehypeRaw],
+      [rehypeRaw, { passThrough: ['citation', 'highlighted-text', 'composite-citation', 'artifact'] }],
       [rehypeKatex],
       [
         rehypeHighlight,

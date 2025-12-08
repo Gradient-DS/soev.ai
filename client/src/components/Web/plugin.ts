@@ -3,6 +3,13 @@ import type { Node } from 'unist';
 import type { Citation, CitationNode } from './types';
 import { SPAN_REGEX, STANDALONE_PATTERN, CLEANUP_REGEX, COMPOSITE_REGEX } from '~/utils/citations';
 
+const DEBUG_CITATIONS = true;
+const debugLog = (...args: unknown[]) => {
+  if (DEBUG_CITATIONS) {
+    console.log('[unicodeCitation]', ...args);
+  }
+};
+
 /**
  * Checks if a standalone marker is truly standalone (not inside a composite block)
  */
@@ -76,6 +83,9 @@ function findNextMatch(
 }
 
 function processTree(tree: Node) {
+  debugLog('processTree called, tree type:', (tree as any).type);
+  debugLog('tree structure:', JSON.stringify(tree, null, 2).slice(0, 1000));
+
   visit(tree, 'text', (node, index, parent) => {
     const textNode = node as CitationNode;
     const parentNode = parent as CitationNode;
@@ -83,6 +93,14 @@ function processTree(tree: Node) {
     if (typeof textNode.value !== 'string') return;
 
     const originalValue = textNode.value;
+
+    // Check if this text contains any citation markers
+    const hasMarkers = /[\ue200-\ue206]/.test(originalValue);
+    if (hasMarkers) {
+      debugLog('Found text with citation markers:', originalValue.slice(0, 200));
+      debugLog('Parent node type:', parentNode?.type);
+    }
+
     const segments: Array<CitationNode> = [];
 
     // Single-pass processing through the string
@@ -151,7 +169,7 @@ function processTree(tree: Node) {
             type: 'highlighted-text',
             data: {
               hName: 'highlighted-text',
-              hProperties: { citationId: associatedCitationId },
+              hProperties: { 'data-citation-id': associatedCitationId },
             },
             children: [{ type: 'text', value: cleanText }],
           });
@@ -186,8 +204,9 @@ function processTree(tree: Node) {
               data: {
                 hName: 'composite-citation',
                 hProperties: {
-                  citations,
-                  citationId: citationId,
+                  // JSON stringify to survive rehype-raw HTML serialization
+                  'data-citations': JSON.stringify(citations),
+                  'data-citation-id': citationId,
                 },
               },
             });
@@ -208,13 +227,14 @@ function processTree(tree: Node) {
             data: {
               hName: 'citation',
               hProperties: {
-                citation: {
+                // JSON stringify to survive rehype-raw HTML serialization
+                'data-citation': JSON.stringify({
                   turn,
                   refType,
                   index: refIndex,
-                },
-                citationType: 'standalone',
-                citationId: citationId,
+                }),
+                'data-citation-type': 'standalone',
+                'data-citation-id': citationId,
               },
             },
           });
@@ -230,6 +250,7 @@ function processTree(tree: Node) {
 
     // Replace the original node with our segments or clean up the original
     if (segments.length > 0 && index !== undefined) {
+      debugLog('Replacing text node with', segments.length, 'segments:', segments.map(s => ({ type: s.type, hName: s.data?.hName })));
       parentNode.children?.splice(index, 1, ...segments);
       return index + segments.length;
     } else if (textNode.value !== textNode.value.replace(CLEANUP_REGEX, '')) {
@@ -237,6 +258,8 @@ function processTree(tree: Node) {
       textNode.value = textNode.value.replace(CLEANUP_REGEX, '');
     }
   });
+
+  debugLog('processTree finished, final tree:', JSON.stringify(tree, null, 2).slice(0, 2000));
 }
 
 export function unicodeCitation() {

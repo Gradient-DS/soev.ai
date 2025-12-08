@@ -11,14 +11,37 @@ import store from '~/store';
 
 interface CompositeCitationProps {
   citationId?: string;
+  // New data-* attributes that survive rehype-raw
+  'data-citations'?: string;
+  'data-citation-id'?: string;
   node?: {
     properties?: CitationProps;
   };
 }
 
 export function CompositeCitation(props: CompositeCitationProps) {
+  // Parse data from either old format (node.properties) or new data-* attributes
+  let citations: Array<Citation> | undefined;
+  let citationId: string | undefined;
+
+  // Try new data-* format first (survives rehype-raw)
+  if (props['data-citations']) {
+    try {
+      citations = JSON.parse(props['data-citations']);
+      citationId = props['data-citation-id'];
+    } catch (e) {
+      console.error('[CompositeCitation] Failed to parse data-citations:', e);
+    }
+  }
+  // Fall back to old format for backwards compatibility
+  if (!citations && props.node?.properties?.citations) {
+    citations = props.node.properties.citations;
+    citationId = citationId || props.node.properties.citationId || undefined;
+  }
+
+  console.log('[CompositeCitation] Parsed:', { citations, citationId });
+
   const localize = useLocalize();
-  const { citations, citationId } = props.node?.properties ?? ({} as CitationProps);
   const { setHoveredCitationId } = useContext(CitationContext);
   const [currentPage, setCurrentPage] = useState(0);
   const sources = useCompositeCitations(citations || []);
@@ -110,18 +133,52 @@ export function CompositeCitation(props: CompositeCitationProps) {
 }
 
 interface CitationComponentProps {
-  citationId: string;
-  citationType: 'span' | 'standalone' | 'composite' | 'group' | 'navlist';
+  citationId?: string;
+  citationType?: 'span' | 'standalone' | 'composite' | 'group' | 'navlist';
+  // New data-* attributes that survive rehype-raw
+  'data-citation'?: string;
+  'data-citation-type'?: string;
+  'data-citation-id'?: string;
   node?: {
     properties?: CitationProps;
   };
 }
 
 export function Citation(props: CitationComponentProps) {
+  // Parse data from either old format (node.properties) or new data-* attributes
+  let citation: { turn: number; refType: string; index: number } | undefined;
+  let citationId: string | undefined;
+
+  // Try new data-* format first (survives rehype-raw)
+  if (props['data-citation']) {
+    try {
+      citation = JSON.parse(props['data-citation']);
+      citationId = props['data-citation-id'];
+    } catch (e) {
+      console.error('[Citation] Failed to parse data-citation:', e);
+    }
+  }
+  // Fall back to old format for backwards compatibility
+  if (!citation && props.node?.properties?.citation) {
+    const propCitation = props.node.properties.citation;
+    // Handle case where it might have been stringified
+    if (typeof propCitation === 'string' && propCitation !== '[object Object]') {
+      try {
+        citation = JSON.parse(propCitation);
+      } catch {
+        // Not JSON, ignore
+      }
+    } else if (typeof propCitation === 'object') {
+      citation = propCitation;
+    }
+    citationId = citationId || props.node.properties.citationId || undefined;
+  }
+
+  console.log('[Citation] Parsed citation:', { citation, citationId });
+
   const localize = useLocalize();
   const user = useRecoilValue(store.user);
   const { showToast } = useToastContext();
-  const { citation, citationId } = props.node?.properties ?? {};
   const { setHoveredCitationId } = useContext(CitationContext);
   const refData = useCitation({
     turn: citation?.turn || 0,
@@ -221,6 +278,8 @@ export function Citation(props: CitationComponentProps) {
 export interface HighlightedTextProps {
   children: React.ReactNode;
   citationId?: string;
+  // New data-* attributes that survive rehype-raw
+  'data-citation-id'?: string;
 }
 
 export function useHighlightState(citationId: string | undefined) {
@@ -231,8 +290,13 @@ export function useHighlightState(citationId: string | undefined) {
 export const HighlightedText = memo(function HighlightedText({
   children,
   citationId,
-}: HighlightedTextProps) {
-  const isHighlighted = useHighlightState(citationId);
+  'data-citation-id': dataCitationId,
+  ...rest
+}: HighlightedTextProps & Record<string, unknown>) {
+  // Use data-citation-id if available (survives rehype-raw), fall back to citationId
+  const effectiveCitationId = dataCitationId || citationId;
+  console.log('[HighlightedText] Rendering with props:', { citationId, dataCitationId, effectiveCitationId, children: typeof children });
+  const isHighlighted = useHighlightState(effectiveCitationId);
 
   return (
     <span
