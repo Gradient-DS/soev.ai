@@ -71,9 +71,14 @@ async function processFileCitations({ user, appConfig, toolArtifact, toolCallId,
     const enhancedSources = await enhanceSourcesWithMetadata(selectedSources, appConfig);
 
     if (enhancedSources.length > 0) {
+      // Preserve sourceKey from the artifact for server-name-based citations
+      const sourceKey = toolArtifact[Tools.file_search].sourceKey;
       const fileSearchAttachment = {
         type: Tools.file_search,
-        [Tools.file_search]: { sources: enhancedSources },
+        [Tools.file_search]: {
+          sources: enhancedSources,
+          ...(sourceKey && { sourceKey }),
+        },
         toolCallId: toolCallId,
         messageId: metadata.run_id,
         conversationId: metadata.thread_id,

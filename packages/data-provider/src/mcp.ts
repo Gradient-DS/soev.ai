@@ -75,6 +75,12 @@ const BaseOptionsSchema = z.object({
       }),
     )
     .optional(),
+  /**
+   * Enable citation markers for this MCP server's search results.
+   * When true, search results will include citation anchors (\ue202turn0file{N})
+   * that render as clickable pills in the chat UI.
+   */
+  fileCitations: z.boolean().optional(),
 });
 
 export const StdioOptionsSchema = BaseOptionsSchema.extend({

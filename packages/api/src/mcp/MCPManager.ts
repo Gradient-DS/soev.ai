@@ -246,7 +246,10 @@ Please follow these instructions when using tools from the respective MCP server
         this.updateUserLastActivity(userId);
       }
       this.checkIdleConnections();
-      return formatToolContent(result as t.MCPToolCallResponse, provider);
+      return formatToolContent(result as t.MCPToolCallResponse, provider, {
+        serverName,
+        fileCitations: rawConfig?.fileCitations,
+      });
     } catch (error) {
       // Log with context and re-throw or handle as needed
       logger.error(`${logPrefix}[${toolName}] Tool call failed`, error);

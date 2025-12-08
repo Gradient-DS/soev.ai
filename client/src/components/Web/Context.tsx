@@ -31,6 +31,9 @@ const refTypeMap: Record<string | SearchRefType, string> = {
   file: 'references',
 };
 
+// Known legacy refTypes that map to array properties within a turn's SearchResultData
+const LEGACY_REF_TYPES = new Set(['search', 'ref', 'news', 'file', 'image', 'video', 'organic', 'references', 'topStories', 'images', 'videos']);
+
 export function useCitation({
   turn,
   index,
@@ -46,15 +49,28 @@ export function useCitation({
   if (!_refType) {
     return undefined;
   }
-  const refType = refTypeMap[_refType.toLowerCase()]
-    ? refTypeMap[_refType.toLowerCase()]
-    : _refType;
 
-  if (!searchResults || !searchResults[turn] || !searchResults[turn][refType]) {
-    return undefined;
+  const refTypeLower = _refType.toLowerCase();
+  let source: CitationSource | undefined;
+
+  // Check if this is a server-name-based key (e.g., 'sharepoint', 'file_search', 'airweave')
+  // Server-name-based keys are stored directly in searchResults with 'references' array
+  if (!LEGACY_REF_TYPES.has(refTypeLower) && searchResults && searchResults[refTypeLower]) {
+    // Server-name-based format: searchResults['sharepoint'].references[index]
+    const serverData = searchResults[refTypeLower];
+    if (serverData.references && serverData.references[index]) {
+      source = serverData.references[index] as CitationSource;
+    }
+  } else {
+    // Legacy format: searchResults[turn][refType][index]
+    const refType = refTypeMap[refTypeLower] ? refTypeMap[refTypeLower] : refTypeLower;
+
+    if (!searchResults || !searchResults[turn] || !searchResults[turn][refType]) {
+      return undefined;
+    }
+
+    source = searchResults[turn][refType][index];
   }
-
-  const source: CitationSource = searchResults[turn][refType][index];
 
   if (!source) {
     return undefined;
@@ -93,14 +109,26 @@ export function useCompositeCitations(
   const result: Array<t.Citation & t.Reference> = [];
 
   for (const { turn, refType: _refType, index } of citations) {
-    const refType = refTypeMap[_refType.toLowerCase()]
-      ? refTypeMap[_refType.toLowerCase()]
-      : _refType;
+    const refTypeLower = _refType.toLowerCase();
+    let source: CitationSource | undefined;
 
-    if (!searchResults || !searchResults[turn] || !searchResults[turn][refType]) {
-      continue;
+    // Check if this is a server-name-based key (e.g., 'sharepoint', 'file_search', 'airweave')
+    if (!LEGACY_REF_TYPES.has(refTypeLower) && searchResults && searchResults[refTypeLower]) {
+      // Server-name-based format: searchResults['sharepoint'].references[index]
+      const serverData = searchResults[refTypeLower];
+      if (serverData.references && serverData.references[index]) {
+        source = serverData.references[index] as CitationSource;
+      }
+    } else {
+      // Legacy format: searchResults[turn][refType][index]
+      const refType = refTypeMap[refTypeLower] ? refTypeMap[refTypeLower] : refTypeLower;
+
+      if (!searchResults || !searchResults[turn] || !searchResults[turn][refType]) {
+        continue;
+      }
+      source = searchResults[turn][refType][index];
     }
-    const source: CitationSource = searchResults[turn][refType][index];
+
     if (!source) {
       continue;
     }
@@ -108,7 +136,7 @@ export function useCompositeCitations(
     result.push({
       ...source,
       turn,
-      refType: _refType.toLowerCase(),
+      refType: refTypeLower,
       index,
       link: source.link ?? '',
       title: source.title ?? '',

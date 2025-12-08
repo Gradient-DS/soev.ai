@@ -893,7 +893,11 @@ export class MCPManager {
         this.updateUserLastActivity(userId);
       }
       this.checkIdleConnections();
-      return formatToolContent(result as t.MCPToolCallResponse, provider);
+      const serverConfig = this.mcpConfigs[serverName];
+      return formatToolContent(result as t.MCPToolCallResponse, provider, {
+        serverName,
+        fileCitations: serverConfig?.fileCitations,
+      });
     } catch (error) {
       // Log with context and re-throw or handle as needed
       logger.error(`${logPrefix}[${toolName}] Tool call failed`, error);

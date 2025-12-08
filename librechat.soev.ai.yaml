@@ -166,6 +166,7 @@ mcpServers:
     timeout: 60000
     serverInstructions: true
     chatMenu: true
+    fileCitations: true
 
   # soev-rag - SharePoint/OneDrive document retrieval (replaces Airweave)
   SharePoint:
@@ -175,6 +176,7 @@ mcpServers:
       Authorization: Bearer ${SHAREPOINT_API_KEY}
     timeout: 60000
     chatMenu: true
+    fileCitations: true
     serverInstructions: |
       Available tools:
       - sharepoint_search: Semantic search across SharePoint documents

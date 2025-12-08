@@ -150,6 +150,7 @@ export type Artifacts =
       [Tools.file_search]?: {
         sources: (FileSearchSource | MCPFileSearchSource)[];
         fileCitations?: boolean;
+        sourceKey?: string;
       };
       [Tools.web_search]?: SearchResultData;
       files?: Array<{ id: string; name: string }>;

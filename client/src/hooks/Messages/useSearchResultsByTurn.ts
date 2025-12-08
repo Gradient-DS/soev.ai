@@ -33,7 +33,16 @@ export function useSearchResultsByTurn(attachments?: TAttachment[]) {
   const localize = useLocalize();
   const searchResultsByTurn = useMemo(() => {
     const turnMap: { [key: string]: SearchResultData } = {};
-    let agentFileSearchTurn = 0;
+
+    // DEBUG: Log all attachments being processed
+    console.log('[DEBUG useSearchResultsByTurn] Processing attachments:', {
+      count: attachments?.length || 0,
+      types: attachments?.map((a) => a.type) || [],
+      fileSearchAttachments: attachments?.filter((a) => a.type === Tools.file_search).map((a) => ({
+        sourceKey: (a[Tools.file_search] as any)?.sourceKey,
+        sourcesCount: (a[Tools.file_search] as any)?.sources?.length,
+      })) || [],
+    });
 
     attachments?.forEach((attachment) => {
       // Handle web search attachments (existing functionality)
@@ -59,8 +68,16 @@ export function useSearchResultsByTurn(attachments?: TAttachment[]) {
       }
 
       // Handle agent file search attachments (following web search pattern)
+      // Each attachment has a sourceKey that identifies the source system (e.g., 'file_search', 'sharepoint', 'airweave')
       if (attachment.type === Tools.file_search && attachment[Tools.file_search]) {
-        const sources = attachment[Tools.file_search].sources;
+        const fileSearchData = attachment[Tools.file_search] as {
+          sources: FileSource[];
+          sourceKey?: string;
+          fileCitations?: boolean;
+        };
+        const sources = fileSearchData.sources;
+        // Use sourceKey from the attachment, fallback to 'file' for legacy compatibility
+        const sourceKey = fileSearchData.sourceKey || 'file';
 
         // Deduplicate sources by fileId and merge pages
         const deduplicatedSources = new Map<string, DeduplicatedSource>();
@@ -101,7 +118,7 @@ export function useSearchResultsByTurn(attachments?: TAttachment[]) {
 
         // Convert agent file sources to SearchResultData format
         const agentSearchData: SearchResultData = {
-          turn: agentFileSearchTurn,
+          turn: 0, // All file_search sources use turn 0, differentiated by sourceKey
           organic: [], // Agent file search doesn't have organic web results
           topStories: [], // No top stories for file search
           images: [], // No images for file search
@@ -129,11 +146,14 @@ export function useSearchResultsByTurn(attachments?: TAttachment[]) {
           ),
         };
 
-        turnMap[agentFileSearchTurn.toString()] = agentSearchData;
-        agentFileSearchTurn++;
+        // Use sourceKey as the map key to keep sources from different systems separate
+        // This allows citations like \ue202turn0sharepoint0 and \ue202turn0file_search0 to resolve correctly
+        console.log('[DEBUG useSearchResultsByTurn] Adding to turnMap with sourceKey:', sourceKey, 'references count:', agentSearchData.references?.length);
+        turnMap[sourceKey] = agentSearchData;
       }
     });
 
+    console.log('[DEBUG useSearchResultsByTurn] Final turnMap keys:', Object.keys(turnMap));
     return turnMap;
   }, [attachments, localize]);
 
