@@ -10,6 +10,25 @@ import { logger, extractContent, isArtifactRoute } from '~/utils';
 import { artifactsState } from '~/store/artifacts';
 import ArtifactButton from './ArtifactButton';
 
+/**
+ * Extracts raw text content from mdast nodes before rehype processing
+ * Handles text, html, and other node types with value property
+ */
+const extractRawContent = (node: unknown): string => {
+  if (!node || typeof node !== 'object') {
+    return '';
+  }
+  const n = node as { type?: string; value?: string; children?: unknown[] };
+  // Handle nodes with value (text, html, code, etc.)
+  if (typeof n.value === 'string') {
+    return n.value;
+  }
+  if (Array.isArray(n.children)) {
+    return n.children.map(extractRawContent).join('');
+  }
+  return '';
+};
+
 export const artifactPlugin: Pluggable = () => {
   return (tree) => {
     visit(tree, ['textDirective', 'leafDirective', 'containerDirective'], (node, index, parent) => {
@@ -25,9 +44,16 @@ export const artifactPlugin: Pluggable = () => {
       if (node.name !== 'artifact') {
         return;
       }
+      // Extract raw content BEFORE rehype-raw processes it
+      const rawContent = extractRawContent(node);
+      console.log('[artifactPlugin] node:', JSON.stringify(node, null, 2).slice(0, 500));
+      console.log('[artifactPlugin] rawContent length:', rawContent.length, 'preview:', rawContent.slice(0, 100));
       node.data = {
         hName: node.name,
-        hProperties: node.attributes,
+        hProperties: {
+          ...node.attributes,
+          'data-raw-content': rawContent,
+        },
         ...node.data,
       };
       return node;
@@ -41,10 +67,12 @@ const defaultIdentifier = 'lc-no-identifier';
 
 export function Artifact({
   node: _node,
+  'data-raw-content': rawContent,
   ...props
 }: Artifact & {
   children: React.ReactNode | { props: { children: React.ReactNode } };
   node: unknown;
+  'data-raw-content'?: string;
 }) {
   const location = useLocation();
   const { messageId } = useMessageContext();
@@ -61,8 +89,10 @@ export function Artifact({
   );
 
   const updateArtifact = useCallback(() => {
-    const content = extractContent(props.children);
-    logger.log('artifacts', 'updateArtifact: content.length', content.length);
+    // Prefer raw content from the plugin (preserved before rehype-raw processing)
+    // Fall back to extractContent for backwards compatibility
+    const content = rawContent || extractContent(props.children);
+    logger.log('artifacts', 'updateArtifact: content.length', content.length, 'hasRawContent:', !!rawContent);
 
     const title = props.title ?? defaultTitle;
     const type = props.type ?? defaultType;
@@ -114,6 +144,7 @@ export function Artifact({
     setArtifacts,
     props.children,
     props.identifier,
+    rawContent,
     messageId,
     artifactIndex,
     location.pathname,
