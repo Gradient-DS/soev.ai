@@ -85,9 +85,12 @@ services:
       retries: 5
 
   rag_api:
-    image: ghcr.io/gradient-ds/soev-rag-api:latest
+    image: ghcr.io/gradient-ds/soev-rag:latest
+    command: ["python", "-m", "soev_rag.api.main"]
     container_name: soev-rag-api
     restart: unless-stopped
+    ports:
+      - "8100:8100"
     environment:
       WEAVIATE_URL: http://weaviate:8080
       WEAVIATE_GRPC_PORT: 50051
@@ -96,7 +99,6 @@ services:
       RAG_EMBEDDING_MODEL: ${RAG_EMBEDDING_MODEL}
       RAG_EMBEDDING_DIM: ${RAG_EMBEDDING_DIM:-1024}
       JWT_SECRET: ${JWT_SECRET}
-      MCP_API_KEY: ${SHAREPOINT_API_KEY}
       CHUNK_SIZE: 1500
       CHUNK_OVERLAP: 100
     depends_on:
@@ -106,7 +108,8 @@ services:
       - internal
 
   sharepoint-worker:
-    image: ghcr.io/gradient-ds/soev-rag-worker:latest
+    image: ghcr.io/gradient-ds/soev-rag:latest
+    command: ["python", "-m", "soev_rag.worker.main"]
     container_name: soev-sharepoint-worker
     restart: unless-stopped
     environment:
@@ -123,6 +126,31 @@ services:
       SHAREPOINT_SYNC_CRON: "0 * * * *"
     volumes:
       - sync_data:/data/sync_cursors
+    depends_on:
+      weaviate:
+        condition: service_healthy
+    networks:
+      - internal
+
+  mcp-server:
+    image: ghcr.io/gradient-ds/soev-rag:latest
+    command: ["python", "-m", "soev_rag.mcp.main"]
+    container_name: soev-mcp-server
+    restart: unless-stopped
+    ports:
+      - "8101:8101"
+    environment:
+      WEAVIATE_URL: http://weaviate:8080
+      WEAVIATE_GRPC_PORT: 50051
+      RAG_API_KEY: ${RAG_API_KEY}
+      RAG_BASE_URL: ${RAG_BASE_URL}
+      RAG_EMBEDDING_MODEL: ${RAG_EMBEDDING_MODEL}
+      RAG_EMBEDDING_DIM: ${RAG_EMBEDDING_DIM:-1024}
+      MCP_API_KEY: ${SHAREPOINT_API_KEY}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID}
+      AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET}
+      SHAREPOINT_SITE_URL: ${SHAREPOINT_SITE_URL:-}
     depends_on:
       weaviate:
         condition: service_healthy

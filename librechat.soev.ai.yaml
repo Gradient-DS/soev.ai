@@ -170,7 +170,7 @@ mcpServers:
   # soev-rag - SharePoint/OneDrive document retrieval (replaces Airweave)
   SharePoint:
     type: streamable-http
-    url: http://rag_api:8100/mcp
+    url: http://mcp-server:8101/mcp
     headers:
       Authorization: Bearer ${SHAREPOINT_API_KEY}
     timeout: 60000
