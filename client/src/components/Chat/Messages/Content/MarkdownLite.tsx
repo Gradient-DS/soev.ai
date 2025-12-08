@@ -15,7 +15,7 @@ import { langSubset } from '~/utils';
 const MarkdownLite = memo(
   ({ content = '', codeExecution = true }: { content?: string; codeExecution?: boolean }) => {
     const rehypePlugins: PluggableList = [
-      [rehypeRaw],
+      [rehypeRaw, { passThrough: ['citation', 'highlighted-text', 'composite-citation', 'artifact'] }],
       [rehypeKatex],
       [
         rehypeHighlight,
