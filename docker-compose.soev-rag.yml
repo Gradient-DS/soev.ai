@@ -1,164 +1,5 @@
-# soev-rag Integration Plan
-
-## Overview
-Replace the current Airweave stack and LibreChat RAG API with soev-rag for document retrieval and SharePoint integration.
-
-## Files to Create/Modify
-
-### 1. Create `docker-compose.soev-rag.yml` (NEW)
-A dedicated compose file for testing soev-rag integration.
-
-**Services to include:**
-- `weaviate` - Vector database (replaces vectordb/pgvector)
-- `rag_api` - soev-rag API on port 8100 (image: `ghcr.io/gradient-ds/soev-rag-api:latest`)
-- `sharepoint-worker` - SharePoint sync worker (image: `ghcr.io/gradient-ds/soev-rag-worker:latest`)
-- `mongodb`, `meilisearch` - Keep as-is
-- `librechat_api` - Update `RAG_API_URL` to port 8100
-- `nginx` - Keep as-is
-- Full monitoring stack (prometheus, grafana, alertmanager, node-exporter, metrics)
-
-### 2. Modify `librechat.soev.ai.yaml`
-Update the SharePoint MCP server configuration:
-
-**Current (lines 172-193):**
-```yaml
-SharePoint:
-  type: stdio
-  command: npx
-  args:
-    - -y
-    - airweave-mcp-search
-  env:
-    AIRWEAVE_API_KEY: ${AIRWEAVE_API_KEY}
-    AIRWEAVE_COLLECTION: ${AIRWEAVE_COLLECTION_ID}
-    AIRWEAVE_BASE_URL: http://airweave-backend:8001
-```
-
-**New:**
-```yaml
-SharePoint:
-  type: streamable-http
-  url: http://rag_api:8100/mcp
-  headers:
-    Authorization: Bearer ${JWT_SECRET}
-  timeout: 60000
-  chatMenu: true
-  serverInstructions: |
-    Available tools:
-    - sharepoint_search: Semantic search across SharePoint documents
-    - sharepoint_list_files: List all indexed files
-    - sharepoint_stats: Get index statistics
-```
-
-## Environment Variables
-
-### Variables to ADD/UPDATE in `.env`:
-
-```bash
-# Embeddings (OpenAI-compatible API)
-RAG_API_KEY=<your-api-key>
-RAG_BASE_URL=https://api.nebul.io/v1
-RAG_EMBEDDING_MODEL=intfloat/multilingual-e5-large-instruct
-RAG_EMBEDDING_DIM=1024
-
-# SharePoint sync settings (new)
-SHAREPOINT_SITE_URL=${SHAREPOINT_URL}   # Reuse existing SHAREPOINT_URL
-SHAREPOINT_SYNC_CRON=0 * * * *          # Hourly sync (optional)
-```
-
-### Variables that can be REMOVED (only used by Airweave):
-```bash
-AIRWEAVE_ENCRYPTION_KEY
-AIRWEAVE_STATE_SECRET
-AIRWEAVE_DB_PASSWORD
-AIRWEAVE_EMBEDDINGS_API_KEY    # Replaced by RAG_API_KEY
-AIRWEAVE_EMBEDDINGS_BASE_URL   # Replaced by RAG_BASE_URL
-AIRWEAVE_EMBEDDINGS_MODEL      # Replaced by RAG_EMBEDDING_MODEL
-AIRWEAVE_EMBEDDING_DIM         # Replaced by RAG_EMBEDDING_DIM
-AIRWEAVE_ADMIN_EMAIL
-AIRWEAVE_ADMIN_PASSWORD
-AIRWEAVE_API_KEY
-AIRWEAVE_COLLECTION_ID
-SHAREPOINT_CONNECTION_ID
-NEBUL_RAG                      # Replaced by RAG_API_KEY
-RAG_OPENAI_BASE_URL            # Replaced by RAG_BASE_URL
-RAG_EMBEDDINGS_MODEL           # Replaced by RAG_EMBEDDING_MODEL
-```
-
-### Variables to KEEP (reused by soev-rag):
-```bash
-AZURE_CLIENT_ID
-AZURE_TENANT_ID
-AZURE_CLIENT_SECRET
-JWT_SECRET
-JWT_REFRESH_SECRET
-SHAREPOINT_URL → renamed to SHAREPOINT_SITE_URL
-```
-
-## Docker Compose Changes Summary
-
-| Current Service | Replacement | Notes |
-|-----------------|-------------|-------|
-| `vectordb` (pgvector) | `weaviate` | Different vector DB |
-| `rag_api` (port 8000) | `rag_api` (port 8100) | soev-rag API |
-| `airweave-backend` | Removed | Replaced by rag_api |
-| `airweave-db` | Removed | Not needed |
-| `airweave-qdrant` | Removed | Weaviate replaces |
-| `airweave-redis` | Removed | Not needed |
-| `airweave-temporal` | Removed | Not needed |
-| `airweave-worker` | `sharepoint-worker` | Simpler cron-based sync |
-
-## Key Port Changes
-- RAG API: 8000 → 8100
-- Update `RAG_API_URL` in librechat_api environment
-
-## Implementation Steps
-
-1. **Create `docker-compose.soev-rag.yml`**
-   - Copy base structure from `docker-compose.staging.yml`
-   - Replace `vectordb` with `weaviate` service
-   - Replace `rag_api` with pre-built image `ghcr.io/gradient-ds/soev-rag-api:latest` (port 8100)
-   - Add `sharepoint-worker` service using `ghcr.io/gradient-ds/soev-rag-worker:latest`
-   - Remove all airweave-* services
-   - Update `librechat_api` environment: `RAG_API_URL: http://rag_api:8100`
-   - Keep full monitoring stack
-
-2. **Update `librechat.soev.ai.yaml` (lines 172-193)**
-   - Change SharePoint MCP from stdio/npx to streamable-http
-   - Point to `http://rag_api:8100/mcp`
-   - Update serverInstructions for new tool names
-
-## .env Variables Summary
-
-**Add these (new for soev-rag):**
-```bash
-RAG_API_KEY=<your-api-key>
-RAG_BASE_URL=https://api.nebul.io/v1
-RAG_EMBEDDING_MODEL=intfloat/multilingual-e5-large-instruct
-RAG_EMBEDDING_DIM=1024
-SHAREPOINT_SITE_URL=https://gradientdatascience.sharepoint.com/sites/soev.aidemo
-SHAREPOINT_SYNC_CRON=0 * * * *
-```
-
-**Keep these (already set):**
-```bash
-JWT_SECRET=<existing>
-AZURE_CLIENT_ID=<existing>
-AZURE_TENANT_ID=<existing>
-AZURE_CLIENT_SECRET=<existing>
-```
-
-**Can remove (Airweave-only and old variable names):**
-```bash
-AIRWEAVE_ENCRYPTION_KEY, AIRWEAVE_STATE_SECRET, AIRWEAVE_DB_PASSWORD
-AIRWEAVE_EMBEDDINGS_*, AIRWEAVE_ADMIN_*, AIRWEAVE_API_KEY, AIRWEAVE_COLLECTION_ID
-NEBUL_RAG, RAG_OPENAI_BASE_URL, RAG_EMBEDDINGS_MODEL
-```
-
-## Docker Compose Template
-
-```yaml
 # docker-compose.soev-rag.yml
+# soev-rag integration stack - replaces Airweave and LibreChat RAG API
 networks:
   internal:
   edge:
@@ -172,6 +13,8 @@ services:
       target: api-build
     container_name: librechat_api
     restart: unless-stopped
+    labels:
+      - "soevai.restart=enabled"
     environment:
       CONFIG_PATH: /app/librechat.soev.ai.yaml
       BASE_CONFIG_PATH: /app/librechat.soev.ai.yaml
@@ -179,8 +22,9 @@ services:
       PORT: 3080
       MONGO_URI: mongodb://mongodb:27017/LibreChat
       MEILI_HOST: http://meilisearch:7700
-      RAG_API_URL: http://rag_api:8100  # Changed from 8000
+      RAG_API_URL: http://rag_api:8100  # Changed from 8000 to soev-rag port
       SOEVAI_ROOT: /app
+      DEBUG_LOGGING: "true"
     depends_on:
       - mongodb
       - rag_api
@@ -219,7 +63,7 @@ services:
     networks:
       - internal
 
-  ## SOEV-RAG STACK
+  ## SOEV-RAG STACK (replaces vectordb, rag_api, and all airweave-* services)
   weaviate:
     image: semitechnologies/weaviate:1.28.0
     container_name: soev-weaviate
@@ -241,9 +85,12 @@ services:
       retries: 5
 
   rag_api:
-    image: ghcr.io/gradient-ds/soev-rag-api:latest
+    image: ghcr.io/gradient-ds/soev-rag:latest
+    command: ["python", "-m", "soev_rag.api.main"]
     container_name: soev-rag-api
     restart: unless-stopped
+    ports:
+      - "8100:8100"
     environment:
       WEAVIATE_URL: http://weaviate:8080
       WEAVIATE_GRPC_PORT: 50051
@@ -257,13 +104,12 @@ services:
     depends_on:
       weaviate:
         condition: service_healthy
-    ports:
-      - "8100:8100"
     networks:
       - internal
 
   sharepoint-worker:
-    image: ghcr.io/gradient-ds/soev-rag-worker:latest
+    image: ghcr.io/gradient-ds/soev-rag:latest
+    command: ["python", "-m", "soev_rag.worker.main"]
     container_name: soev-sharepoint-worker
     restart: unless-stopped
     environment:
@@ -280,6 +126,31 @@ services:
       SHAREPOINT_SYNC_CRON: "0 * * * *"
     volumes:
       - sync_data:/data/sync_cursors
+    depends_on:
+      weaviate:
+        condition: service_healthy
+    networks:
+      - internal
+
+  mcp-server:
+    image: ghcr.io/gradient-ds/soev-rag:latest
+    command: ["python", "-m", "soev_rag.mcp.main"]
+    container_name: soev-mcp-server
+    restart: unless-stopped
+    ports:
+      - "8101:8101"
+    environment:
+      WEAVIATE_URL: http://weaviate:8080
+      WEAVIATE_GRPC_PORT: 50051
+      RAG_API_KEY: ${RAG_API_KEY}
+      RAG_BASE_URL: ${RAG_BASE_URL}
+      RAG_EMBEDDING_MODEL: ${RAG_EMBEDDING_MODEL}
+      RAG_EMBEDDING_DIM: ${RAG_EMBEDDING_DIM:-1024}
+      MCP_API_KEY: ${SHAREPOINT_API_KEY}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID}
+      AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET}
+      SHAREPOINT_SITE_URL: ${SHAREPOINT_SITE_URL:-}
     depends_on:
       weaviate:
         condition: service_healthy
@@ -322,6 +193,8 @@ services:
       - '--web.enable-lifecycle'
       - '--web.external-url=http://localhost/prometheus'
       - '--web.route-prefix=/prometheus'
+    environment:
+      ENVIRONMENT: 'development'
     restart: unless-stopped
     depends_on:
       - metrics
@@ -425,4 +298,3 @@ volumes:
   prometheus_data:
   alertmanager_data:
   grafana_data:
-```

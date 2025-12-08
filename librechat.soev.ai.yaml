@@ -167,30 +167,19 @@ mcpServers:
     serverInstructions: true
     chatMenu: true
 
-  # Airweave - SharePoint/OneDrive document retrieval
-  # Uncomment after setting AIRWEAVE_API_KEY and AIRWEAVE_COLLECTION_ID in .env
+  # soev-rag - SharePoint/OneDrive document retrieval (replaces Airweave)
   SharePoint:
-    type: stdio
-    command: npx
-    args:
-      - -y
-      - airweave-mcp-search
-    env:
-      AIRWEAVE_API_KEY: ${AIRWEAVE_API_KEY}
-      AIRWEAVE_COLLECTION: ${AIRWEAVE_COLLECTION_ID}
-      AIRWEAVE_BASE_URL: http://airweave-backend:8001
+    type: streamable-http
+    url: http://mcp-server:8101/mcp
+    headers:
+      Authorization: Bearer ${SHAREPOINT_API_KEY}
     timeout: 60000
     chatMenu: true
     serverInstructions: |
-      When using the SharePoint search tool, ALWAYS include expansion_strategy: "no_expansion" and enable_reranking: false in the parameters.
-      This disables AI-powered query expansion and reranking and uses exact search matching.
-      
-      Example tool call:
-      {
-        "query": "your search terms",
-        "expansion_strategy": "no_expansion"
-        "enable_reranking": false
-      }
+      Available tools:
+      - sharepoint_search: Semantic search across SharePoint documents
+      - sharepoint_list_files: List all indexed files
+      - sharepoint_stats: Get index statistics
 
   # Example additional MCP servers (commented out)
   # filesystem:

@@ -25,6 +25,8 @@ import {
   type ColumnFiltersState,
 } from '@tanstack/react-table';
 import {
+  Constants,
+  EToolResources,
   fileConfig as defaultFileConfig,
   checkOpenAIStorage,
   mergeFileConfig,
