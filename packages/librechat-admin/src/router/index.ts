@@ -8,6 +8,9 @@ import {
   getAllRolePermissions,
   PERMISSION_FEATURES,
   ROLES,
+  updateMCPServerPermission,
+  getMCPServerPermissions,
+  revertMCPServerPermissions,
 } from '../services/configService';
 
 /**
@@ -23,7 +26,7 @@ export function buildAdminRouter(
   // Importing enums/constants that are safe to resolve directly
   const { SystemRoles } = require('librechat-data-provider');
 
-  const protectedPaths = ['/health', '/roles*', '/settings*', '/users*'];
+  const protectedPaths = ['/health', '/roles*', '/settings*', '/users*', '/mcp*'];
 
   router.use(protectedPaths, (req: any, res: any, next: any) => {
     requireJwtAuth(req, res, (err?: any) => {
@@ -229,6 +232,89 @@ export function buildAdminRouter(
       res.json({ success: true, message: 'All settings reverted to YAML defaults' });
     } catch (err: any) {
       console.error('[admin/settings/revert-all] error', err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ---------- MCP Server Endpoints ----------
+
+  // Get list of configured MCP servers (for admin UI)
+  router.get('/mcp/servers', async (_req, res) => {
+    try {
+      const { getAppConfig } = require('~/server/services/Config/app');
+      const appConfig = await getAppConfig();
+      const mcpConfig = appConfig?.mcpConfig || {};
+
+      const servers = Object.entries(mcpConfig).map(([name, config]: [string, any]) => ({
+        name,
+        chatMenu: config.chatMenu !== false,
+        type: config.type || 'unknown',
+      }));
+
+      res.json({ servers });
+    } catch (err: any) {
+      console.error('[admin/mcp/servers] get error', err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Get MCP server permissions for all roles
+  router.get('/mcp/permissions', async (_req, res) => {
+    try {
+      const [adminPerms, userPerms] = await Promise.all([
+        getMCPServerPermissions('ADMIN'),
+        getMCPServerPermissions('USER'),
+      ]);
+
+      res.json({
+        permissions: {
+          ADMIN: adminPerms,
+          USER: userPerms,
+        },
+      });
+    } catch (err: any) {
+      console.error('[admin/mcp/permissions] get error', err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Update MCP server permission for a role
+  router.put('/mcp/permissions/:roleName', async (req, res) => {
+    try {
+      const { roleName } = req.params;
+      const { serverName, enabled } = req.body;
+
+      if (!ROLES.includes(roleName as any)) {
+        return res.status(400).json({ message: `Invalid role: ${roleName}` });
+      }
+
+      if (!serverName || typeof enabled !== 'boolean') {
+        return res.status(400).json({
+          message: 'Required: serverName (string) and enabled (boolean)',
+        });
+      }
+
+      await updateMCPServerPermission(roleName, serverName, enabled);
+
+      // Return updated permissions for this role
+      const permissions = await getMCPServerPermissions(roleName);
+      res.json({
+        message: `MCP permission updated for ${roleName}`,
+        permissions,
+      });
+    } catch (err: any) {
+      console.error('[admin/mcp/permissions/:roleName] update error', err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Revert all MCP server permissions to defaults
+  router.post('/mcp/revert', async (_req, res) => {
+    try {
+      await revertMCPServerPermissions();
+      res.json({ success: true, message: 'MCP permissions reverted to defaults' });
+    } catch (err: any) {
+      console.error('[admin/mcp/revert] error', err);
       res.status(500).json({ message: err.message });
     }
   });

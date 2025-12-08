@@ -35,11 +35,13 @@ export function useCitation({
   turn,
   index,
   refType: _refType,
+  page,
 }: {
   turn: number;
   index: number;
   refType?: SearchRefType | string;
-}): (t.Citation & t.Reference) | undefined {
+  page?: number;
+}): (t.Citation & t.Reference & { page?: number }) | undefined {
   const { searchResults } = useSearchContext();
   if (!_refType) {
     return undefined;
@@ -58,14 +60,27 @@ export function useCitation({
     return undefined;
   }
 
+  // Get base snippet
+  let snippet = source['snippet'] ?? '';
+
+  // If page is specified and source has pages, add page context
+  if (page !== undefined) {
+    const sourceAny = source as Record<string, unknown>;
+    const pages = sourceAny.pages as number[] | undefined;
+    if (pages?.includes(page)) {
+      snippet = `Page ${page}: ${snippet}`;
+    }
+  }
+
   return {
     ...source,
     turn,
     refType: _refType.toLowerCase(),
     index,
+    page,
     link: source.link ?? '',
     title: source.title ?? '',
-    snippet: source['snippet'] ?? '',
+    snippet,
     attribution: source.attribution ?? '',
   };
 }

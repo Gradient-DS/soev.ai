@@ -2,12 +2,15 @@ import { useMemo } from 'react';
 import { TAttachment, Tools, SearchResultData } from 'librechat-data-provider';
 import { useLocalize } from '~/hooks';
 
+import type { CitationOrigin } from '~/@types/citations';
+
 interface FileSource {
   fileId: string;
   fileName: string;
   pages?: number[];
   relevance?: number;
   pageRelevance?: Record<string, number>;
+  origin?: CitationOrigin;
   metadata?: any;
 }
 
@@ -17,6 +20,7 @@ interface DeduplicatedSource {
   pages: number[];
   relevance: number;
   pageRelevance: Record<string, number>;
+  origin?: CitationOrigin;
   metadata?: any;
 }
 
@@ -89,6 +93,7 @@ export function useSearchResultsByTurn(attachments?: TAttachment[]) {
               pages: source.pages || [],
               relevance: source.relevance || 0.5,
               pageRelevance: source.pageRelevance || {},
+              origin: source.origin || 'file_search',
               metadata: source.metadata,
             });
           }
@@ -104,13 +109,16 @@ export function useSearchResultsByTurn(attachments?: TAttachment[]) {
             (source) =>
               ({
                 title: source.fileName || localize('com_file_unknown'),
-                link: `#file-${source.fileId}`, // Create a pseudo-link for file references
+                // Use external URL if available, otherwise create pseudo-link
+                link: source.metadata?.url || `#file-${source.fileId}`,
                 attribution: source.fileName || localize('com_file_unknown'), // Show filename in inline display
                 snippet:
                   source.pages && source.pages.length > 0
                     ? localize('com_file_pages', { pages: source.pages.join(', ') })
                     : '', // Only page numbers for hover
                 type: 'file' as const,
+                // Preserve origin for grouping
+                origin: source.origin || 'file_search',
                 // Store additional agent-specific data as properties on the reference
                 fileId: source.fileId,
                 fileName: source.fileName,

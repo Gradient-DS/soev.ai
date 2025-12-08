@@ -193,7 +193,15 @@ export function formatToolContent(
             const sources = Array.isArray(parsed?.sources)
               ? (parsed.sources
                   .filter(isValidSource)
-                  .map((s) => ({ ...s, sourceType: 'mcp' })) as t.MCPFileSearchSource[])
+                  .map((s) => {
+                    // Determine origin based on metadata
+                    const meta = (s as t.MCPFileSearchSource).metadata;
+                    let origin: 'mcp' | 'sharepoint' | 'file_search' = 'mcp';
+                    if (meta?.storageType === 'sharepoint' || meta?.url?.includes('sharepoint')) {
+                      origin = 'sharepoint';
+                    }
+                    return { ...s, sourceType: 'mcp', origin };
+                  }) as t.MCPFileSearchSource[])
               : [];
             const fileCitations = Boolean(parsed?.fileCitations);
     
@@ -212,14 +220,11 @@ export function formatToolContent(
             // INJECT CITATION MARKERS into the current text block
             if (fileCitations && sources.length > 0) {
               console.log('[MCP parsers] Injecting citation markers into text');
-              
+
               // Add citation reference guide to the text
               let citationGuide = '\n\n**Available Citations (use these exact markers in your response):**\n';
               sources.forEach((source, index) => {
                 const fileName = source.fileName || `Source ${index}`;
-                const pages = source.pages && source.pages.length > 0 
-                  ? ` (pages: ${source.pages.join(', ')})` 
-                  : '';
                 const metadata = [];
                 if (source.metadata?.year) {
                   metadata.push(source.metadata.year);
@@ -228,10 +233,19 @@ export function formatToolContent(
                   metadata.push(source.metadata.contentsubtype);
                 }
                 const metadataStr = metadata.length > 0 ? ` [${metadata.join(', ')}]` : '';
-                // Use double backslash to create literal \ue202 string
-                citationGuide += `- ${fileName}${pages}${metadataStr}: \\ue202turn0file${index}\n`;
+
+                // Basic file citation marker
+                citationGuide += `- ${fileName}${metadataStr}: \\ue202turn0file${index}\n`;
+
+                // Page-level citation markers when pages are available
+                if (source.pages && source.pages.length > 0) {
+                  citationGuide += `  Page-level citations:\n`;
+                  source.pages.forEach((page) => {
+                    citationGuide += `  - Page ${page}: \\ue202turn0file${index}p${page}\n`;
+                  });
+                }
               });
-              
+
               currentTextBlock += citationGuide;
             }
           }

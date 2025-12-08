@@ -9,7 +9,7 @@ import {
 } from 'librechat-data-provider/react-query';
 import type { TUpdateUserPlugins, TPlugin, MCPServersResponse } from 'librechat-data-provider';
 import type { ConfigFieldDetail } from '~/common';
-import { useLocalize, useMCPSelect, useMCPConnectionStatus } from '~/hooks';
+import { useLocalize, useMCPSelect, useMCPConnectionStatus, useCheckMCPServerAccess } from '~/hooks';
 import { useGetStartupConfig } from '~/data-provider';
 
 interface ServerState {
@@ -26,6 +26,7 @@ export function useMCPServerManager({ conversationId }: { conversationId?: strin
   const { showToast } = useToastContext();
   const { data: startupConfig } = useGetStartupConfig();
   const { mcpValues, setMCPValues, isPinned, setIsPinned } = useMCPSelect({ conversationId });
+  const checkMCPServerAccess = useCheckMCPServerAccess();
 
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
   const [selectedToolForConfig, setSelectedToolForConfig] = useState<TPlugin | null>(null);
@@ -40,9 +41,9 @@ export function useMCPServerManager({ conversationId }: { conversationId?: strin
   const configuredServers = useMemo(() => {
     if (!startupConfig?.mcpServers) return [];
     return Object.entries(startupConfig.mcpServers)
-      .filter(([, config]) => config.chatMenu !== false)
+      .filter(([serverName, config]) => config.chatMenu !== false && checkMCPServerAccess(serverName))
       .map(([serverName]) => serverName);
-  }, [startupConfig?.mcpServers]);
+  }, [startupConfig?.mcpServers, checkMCPServerAccess]);
 
   const reinitializeMutation = useReinitializeMCPServerMutation();
   const cancelOAuthMutation = useCancelMCPOAuthMutation();

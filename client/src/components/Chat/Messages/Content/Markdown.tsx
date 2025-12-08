@@ -41,9 +41,71 @@ const Markdown = memo(({ content = '', isLatestMessage }: TContentProps) => {
     return processed;
   }, [content, LaTeXParsing, isInitializing]);
 
+  // Debug plugin to inspect tree after remark processing
+  const debugRehypePlugin = useMemo(
+    () => () => (tree: any) => {
+      const hasCitations = JSON.stringify(tree).includes('citation');
+      const hasHighlightedText = JSON.stringify(tree).includes('highlighted-text');
+      console.log('[Markdown:debugRehypePlugin] Tree before rehype-raw:', {
+        hasCitations,
+        hasHighlightedText,
+        treeType: tree.type,
+        childrenCount: tree.children?.length,
+        firstFewChildren: tree.children?.slice(0, 3).map((c: any) => ({
+          type: c.type,
+          tagName: c.tagName,
+          dataHName: c.data?.hName,
+        })),
+      });
+      // Log any citation nodes found
+      const findCitations = (node: any, path: string[] = []): void => {
+        if (node.type === 'citation' || node.data?.hName === 'citation' || node.tagName === 'citation') {
+          console.log('[Markdown:debugRehypePlugin] Found citation node at path:', path.join(' > '), node);
+        }
+        if (node.children) {
+          node.children.forEach((child: any, i: number) => findCitations(child, [...path, `${node.type || node.tagName}[${i}]`]));
+        }
+      };
+      findCitations(tree);
+    },
+    [],
+  );
+
+  // Debug plugin to inspect tree after rehype-raw processing
+  const debugAfterRehypeRaw = useMemo(
+    () => () => (tree: any) => {
+      const hasCitations = JSON.stringify(tree).includes('citation');
+      const hasHighlightedText = JSON.stringify(tree).includes('highlighted-text');
+      console.log('[Markdown:debugAfterRehypeRaw] Tree AFTER rehype-raw:', {
+        hasCitations,
+        hasHighlightedText,
+        treeType: tree.type,
+        childrenCount: tree.children?.length,
+      });
+      // Log any citation nodes found after rehype-raw
+      const findCitations = (node: any, path: string[] = []): void => {
+        if (node.type === 'citation' || node.data?.hName === 'citation' || node.tagName === 'citation') {
+          console.log('[Markdown:debugAfterRehypeRaw] Found citation node at path:', path.join(' > '), {
+            type: node.type,
+            tagName: node.tagName,
+            dataHName: node.data?.hName,
+            properties: node.properties,
+          });
+        }
+        if (node.children) {
+          node.children.forEach((child: any, i: number) => findCitations(child, [...path, `${node.type || node.tagName}[${i}]`]));
+        }
+      };
+      findCitations(tree);
+    },
+    [],
+  );
+
   const rehypePlugins = useMemo(
     () => [
+      debugRehypePlugin,
       [rehypeRaw, { passThrough: ['citation', 'highlighted-text', 'composite-citation', 'artifact'] }],
+      debugAfterRehypeRaw,
       [rehypeKatex],
       [
         rehypeHighlight,
@@ -54,7 +116,7 @@ const Markdown = memo(({ content = '', isLatestMessage }: TContentProps) => {
         },
       ],
     ],
-    [],
+    [debugRehypePlugin, debugAfterRehypeRaw],
   );
 
   const remarkPlugins: Pluggable[] = [

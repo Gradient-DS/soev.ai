@@ -20,7 +20,6 @@ const adminSettingsSchema = new Schema<IAdminSettings>(
     key: {
       type: String,
       required: true,
-      index: true,
     },
     value: {
       type: Schema.Types.Mixed,

@@ -1,5 +1,13 @@
 import type { SearchRefType } from 'librechat-data-provider';
-export type Citation = { turn: number; refType: SearchRefType | string; index: number };
+import type { CitationOrigin } from '~/@types/citations';
+
+export type Citation = {
+  turn: number;
+  refType: SearchRefType | string;
+  index: number;
+  origin?: CitationOrigin;
+  page?: number; // Specific page reference for page-level citations
+};
 
 export type CitationProps = {
   citationId?: string | null;

@@ -20,7 +20,7 @@ import Parameters from '~/components/SidePanel/Parameters/Panel';
 import FilesPanel from '~/components/SidePanel/Files/Panel';
 import MCPPanel from '~/components/SidePanel/MCP/MCPPanel';
 import { useGetStartupConfig } from '~/data-provider';
-import { useHasAccess } from '~/hooks';
+import { useHasAccess, useCheckMCPServerAccess } from '~/hooks';
 
 export default function useSideNavLinks({
   hidePanel,
@@ -62,6 +62,7 @@ export default function useSideNavLinks({
     permission: Permissions.CREATE,
   });
   const { data: startupConfig } = useGetStartupConfig();
+  const checkMCPServerAccess = useCheckMCPServerAccess();
 
   const Links = useMemo(() => {
     const links: NavLink[] = [];
@@ -152,13 +153,15 @@ export default function useSideNavLinks({
       });
     }
 
+    // soev.ai: Only show MCP sidebar if user has access to at least one server with config options
     if (
       startupConfig?.mcpServers &&
-      Object.values(startupConfig.mcpServers).some(
-        (server: any) =>
-          (server.customUserVars && Object.keys(server.customUserVars).length > 0) ||
-          server.isOAuth ||
-          server.startup === false,
+      Object.entries(startupConfig.mcpServers).some(
+        ([serverName, server]: [string, any]) =>
+          checkMCPServerAccess(serverName) &&
+          ((server.customUserVars && Object.keys(server.customUserVars).length > 0) ||
+            server.isOAuth ||
+            server.startup === false),
       )
     ) {
       links.push({
@@ -193,6 +196,7 @@ export default function useSideNavLinks({
     hasAccessToCreateAgents,
     hidePanel,
     startupConfig,
+    checkMCPServerAccess,
   ]);
 
   return Links;

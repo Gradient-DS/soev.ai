@@ -341,12 +341,33 @@ function createToolEndCallback({ req, res, artifactPromises }) {
     if (output.artifact[Tools.web_search]) {
       artifactPromises.push(
         (async () => {
+          // Add origin field to web search results
+          const webSearchData = { ...output.artifact[Tools.web_search] };
+          if (webSearchData.organic) {
+            webSearchData.organic = webSearchData.organic.map((source) => ({
+              ...source,
+              origin: source.origin || 'web_search',
+            }));
+          }
+          if (webSearchData.topStories) {
+            webSearchData.topStories = webSearchData.topStories.map((source) => ({
+              ...source,
+              origin: source.origin || 'web_search',
+            }));
+          }
+          if (webSearchData.references) {
+            webSearchData.references = webSearchData.references.map((ref) => ({
+              ...ref,
+              origin: ref.origin || (ref.type === 'file' ? 'file_search' : 'web_search'),
+            }));
+          }
+
           const attachment = {
             type: Tools.web_search,
             messageId: metadata.run_id,
             toolCallId: output.tool_call_id,
             conversationId: metadata.thread_id,
-            [Tools.web_search]: { ...output.artifact[Tools.web_search] },
+            [Tools.web_search]: webSearchData,
           };
           if (!res.headersSent) {
             return attachment;

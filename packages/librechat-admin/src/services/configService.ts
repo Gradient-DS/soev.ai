@@ -28,6 +28,9 @@ export const PERMISSION_FEATURES = [
 
 export type FeatureId = typeof PERMISSION_FEATURES[number]['id'];
 
+// MCP Server permission type - stored under role.permissions.MCP_SERVERS
+export const MCP_SERVERS_PERMISSION_TYPE = 'MCP_SERVERS';
+
 // Roles that can have feature overrides
 export const ROLES = ['ADMIN', 'USER'] as const;
 export type Role = typeof ROLES[number];
@@ -117,4 +120,77 @@ export async function getAllRolePermissions(): Promise<Record<Role, Record<strin
     ADMIN: adminPerms,
     USER: userPerms,
   };
+}
+
+/**
+ * Update MCP server permission for a role
+ * Stores under role.permissions.MCP_SERVERS[serverName] = enabled
+ */
+export async function updateMCPServerPermission(
+  roleName: string,
+  serverName: string,
+  enabled: boolean
+): Promise<void> {
+  const { updateAccessPermissions } = getRoleFunctions();
+  await updateAccessPermissions(roleName, {
+    [MCP_SERVERS_PERMISSION_TYPE]: { [serverName]: enabled },
+  });
+
+  // Store in AdminSettings for tracking/reverting
+  const adminKey = `mcp.${serverName}`;
+  await AdminSettings.findOneAndUpdate(
+    { key: adminKey, scope: 'role', scopeId: roleName },
+    {
+      key: adminKey,
+      value: enabled,
+      yamlDefault: true, // YAML default is always enabled
+      source: 'admin',
+      scope: 'role',
+      scopeId: roleName,
+    },
+    { upsert: true }
+  );
+}
+
+/**
+ * Get MCP server permissions for a role
+ * Returns object mapping serverName -> enabled (undefined = enabled by default)
+ */
+export async function getMCPServerPermissions(roleName: string): Promise<Record<string, boolean>> {
+  const permissions = await getRolePermissions(roleName);
+  return permissions?.[MCP_SERVERS_PERMISSION_TYPE] || {};
+}
+
+/**
+ * Revert all MCP server permissions to defaults (all enabled)
+ * Since updateAccessPermissions merges permissions, we need to use
+ * direct MongoDB update to clear the MCP_SERVERS object completely.
+ */
+export async function revertMCPServerPermissions(): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { Role } = require('~/db/models');
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const getLogStores = require('~/cache/getLogStores');
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { CacheKeys } = require('librechat-data-provider');
+
+  // Directly unset MCP_SERVERS from permissions for both roles
+  await Role.updateMany(
+    { name: { $in: ['ADMIN', 'USER'] } },
+    { $unset: { [`permissions.${MCP_SERVERS_PERMISSION_TYPE}`]: 1 } }
+  );
+
+  // Clear cache for both roles
+  const cache = getLogStores(CacheKeys.ROLES);
+  const [adminRole, userRole] = await Promise.all([
+    Role.findOne({ name: 'ADMIN' }).lean().exec(),
+    Role.findOne({ name: 'USER' }).lean().exec(),
+  ]);
+  await Promise.all([
+    cache.set('ADMIN', adminRole),
+    cache.set('USER', userRole),
+  ]);
+
+  // Remove all MCP-related AdminSettings
+  await AdminSettings.deleteMany({ key: { $regex: /^mcp\./ } });
 }

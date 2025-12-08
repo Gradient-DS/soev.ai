@@ -12,6 +12,15 @@ const {
 const { getMCPManager } = require('~/config');
 const { mcpServersRegistry } = require('@librechat/api');
 
+// soev.ai: Get MCP server permissions for a role
+let getMCPServerPermissionsForRole = null;
+try {
+  getMCPServerPermissionsForRole =
+    require('../../packages/librechat-admin/dist/services/configService').getMCPServerPermissions;
+} catch (e) {
+  // Admin module not installed or not built - ignore
+}
+
 /**
  * Get all MCP tools available to the user
  */
@@ -28,8 +37,22 @@ const getMCPTools = async (req, res) => {
       return res.status(200).json({ servers: {} });
     }
 
+    // soev.ai: Get MCP permissions for the user's role
+    let mcpPermissions = {};
+    if (getMCPServerPermissionsForRole && req.user?.role) {
+      try {
+        mcpPermissions = await getMCPServerPermissionsForRole(req.user.role);
+      } catch (err) {
+        logger.warn('[getMCPTools] Error fetching MCP permissions:', err.message);
+      }
+    }
+
     const mcpManager = getMCPManager();
-    const configuredServers = Object.keys(appConfig.mcpConfig);
+    // soev.ai: Filter servers based on role permissions
+    const allServers = Object.keys(appConfig.mcpConfig);
+    const configuredServers = allServers.filter(
+      (serverName) => mcpPermissions[serverName] !== false,
+    );
     const mcpServers = {};
 
     const cachePromises = configuredServers.map((serverName) =>

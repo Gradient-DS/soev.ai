@@ -53,6 +53,12 @@ const rolePermissionsSchema = new Schema(
     [PermissionTypes.FILE_CITATIONS]: {
       [Permissions.USE]: { type: Boolean },
     },
+    // soev.ai: MCP Server permissions - dynamic keys (server names) mapping to boolean
+    // Uses Mixed type to allow any server names as keys
+    [PermissionTypes.MCP_SERVERS]: {
+      type: Schema.Types.Mixed,
+      default: {},
+    },
   },
   { _id: false },
 );

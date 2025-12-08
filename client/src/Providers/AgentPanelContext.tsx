@@ -8,7 +8,7 @@ import {
   useGetStartupConfig,
   useMCPToolsQuery,
 } from '~/data-provider';
-import { useLocalize, useGetAgentsConfig, useMCPConnectionStatus } from '~/hooks';
+import { useLocalize, useGetAgentsConfig, useMCPConnectionStatus, useCheckMCPServerAccess } from '~/hooks';
 import { Panel, isEphemeralAgent } from '~/common';
 
 const AgentPanelContext = createContext<AgentPanelContextType | undefined>(undefined);
@@ -42,9 +42,10 @@ export function AgentPanelProvider({ children }: { children: React.ReactNode }) 
   });
 
   const { agentsConfig, endpointsConfig } = useGetAgentsConfig();
+  const checkMCPServerAccess = useCheckMCPServerAccess();
   const mcpServerNames = useMemo(
-    () => Object.keys(startupConfig?.mcpServers ?? {}),
-    [startupConfig],
+    () => Object.keys(startupConfig?.mcpServers ?? {}).filter(checkMCPServerAccess),
+    [startupConfig, checkMCPServerAccess],
   );
 
   const { connectionStatus } = useMCPConnectionStatus({
@@ -57,6 +58,11 @@ export function AgentPanelProvider({ children }: { children: React.ReactNode }) 
 
     if (mcpData?.servers) {
       for (const [serverName, serverData] of Object.entries(mcpData.servers)) {
+        // soev.ai: Skip servers the user doesn't have access to
+        if (!checkMCPServerAccess(serverName)) {
+          continue;
+        }
+
         const metadata = {
           name: serverName,
           pluginKey: serverName,
@@ -108,7 +114,7 @@ export function AgentPanelProvider({ children }: { children: React.ReactNode }) 
     }
 
     return serversMap;
-  }, [mcpData, localize, mcpServerNames, connectionStatus]);
+  }, [mcpData, localize, mcpServerNames, connectionStatus, checkMCPServerAccess]);
 
   const value: AgentPanelContextType = {
     mcp,

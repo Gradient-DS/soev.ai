@@ -8,7 +8,7 @@ import type { TUpdateUserPlugins } from 'librechat-data-provider';
 import ServerInitializationSection from '~/components/MCP/ServerInitializationSection';
 import CustomUserVarsSection from '~/components/MCP/CustomUserVarsSection';
 import { MCPPanelProvider, useMCPPanelContext } from '~/Providers';
-import { useLocalize, useMCPConnectionStatus } from '~/hooks';
+import { useLocalize, useMCPConnectionStatus, useCheckMCPServerAccess } from '~/hooks';
 import { useGetStartupConfig } from '~/data-provider';
 import MCPPanelSkeleton from './MCPPanelSkeleton';
 
@@ -18,6 +18,7 @@ function MCPPanelContent() {
   const { showToast } = useToastContext();
   const { conversationId } = useMCPPanelContext();
   const { data: startupConfig, isLoading: startupConfigLoading } = useGetStartupConfig();
+  const checkMCPServerAccess = useCheckMCPServerAccess();
   const { connectionStatus } = useMCPConnectionStatus({
     enabled: !!startupConfig?.mcpServers && Object.keys(startupConfig.mcpServers).length > 0,
   });
@@ -49,15 +50,17 @@ function MCPPanelContent() {
     if (!startupConfig?.mcpServers) {
       return [];
     }
-    return Object.entries(startupConfig.mcpServers).map(([serverName, config]) => ({
-      serverName,
-      iconPath: null,
-      config: {
-        ...config,
-        customUserVars: config.customUserVars ?? {},
-      },
-    }));
-  }, [startupConfig?.mcpServers]);
+    return Object.entries(startupConfig.mcpServers)
+      .filter(([serverName]) => checkMCPServerAccess(serverName))
+      .map(([serverName, config]) => ({
+        serverName,
+        iconPath: null,
+        config: {
+          ...config,
+          customUserVars: config.customUserVars ?? {},
+        },
+      }));
+  }, [startupConfig?.mcpServers, checkMCPServerAccess]);
 
   const handleServerClickToEdit = (serverName: string) => {
     setSelectedServerNameForEditing(serverName);
