@@ -92,14 +92,69 @@ export const handleDoubleClick: React.MouseEventHandler<HTMLElement> = (event) =
   selection.addRange(range);
 };
 
+/**
+ * Extracts content from React children, serializing React elements back to HTML strings.
+ * This allows artifacts to work correctly whether their content is raw text or parsed React elements.
+ */
 export const extractContent = (
   children: React.ReactNode | { props: { children: React.ReactNode } } | string,
 ): string => {
   if (typeof children === 'string') {
     return children;
   }
+  if (typeof children === 'number') {
+    return String(children);
+  }
+  if (children == null || typeof children === 'boolean') {
+    return '';
+  }
   if (React.isValidElement(children)) {
-    return extractContent((children.props as { children?: React.ReactNode }).children);
+    const element = children as React.ReactElement<{ children?: React.ReactNode }>;
+    const type = element.type;
+
+    // If it's a string type (HTML element like 'div', 'svg', 'path', etc.)
+    if (typeof type === 'string') {
+      const props = element.props || {};
+      const childContent = extractContent(props.children);
+
+      // SVG elements that need camelCase attributes preserved
+      const svgElements = ['svg', 'path', 'circle', 'rect', 'line', 'polyline', 'polygon', 'ellipse', 'g', 'text', 'tspan', 'defs', 'clipPath', 'mask', 'pattern', 'linearGradient', 'radialGradient', 'stop', 'use', 'symbol', 'marker', 'foreignObject', 'image', 'filter', 'feGaussianBlur', 'feOffset', 'feMerge', 'feMergeNode', 'feBlend', 'feColorMatrix', 'feComponentTransfer', 'feComposite', 'feConvolveMatrix', 'feDiffuseLighting', 'feDisplacementMap', 'feFlood', 'feImage', 'feMorphology', 'feSpecularLighting', 'feTile', 'feTurbulence'];
+      const isSvgElement = svgElements.includes(type);
+
+      // Build attributes string
+      const attrs = Object.entries(props)
+        .filter(([key]) => key !== 'children')
+        .map(([key, value]) => {
+          // For SVG elements, preserve the original attribute name (React uses camelCase)
+          // For HTML elements, convert camelCase to kebab-case
+          let attrName = key;
+          if (!isSvgElement) {
+            attrName = key.replace(/([A-Z])/g, '-$1').toLowerCase();
+          }
+          if (typeof value === 'boolean') {
+            return value ? attrName : '';
+          }
+          if (value == null) {
+            return '';
+          }
+          return `${attrName}="${String(value).replace(/"/g, '&quot;')}"`;
+        })
+        .filter(Boolean)
+        .join(' ');
+
+      // Self-closing tags (both HTML and SVG)
+      const selfClosing = ['br', 'hr', 'img', 'input', 'meta', 'link', 'area', 'base', 'col', 'embed', 'param', 'source', 'track', 'wbr', 'path', 'circle', 'rect', 'line', 'polyline', 'polygon', 'ellipse', 'stop', 'use', 'image'];
+      if (selfClosing.includes(type) && !childContent) {
+        return attrs ? `<${type} ${attrs} />` : `<${type} />`;
+      }
+
+      // Regular tags
+      const openTag = attrs ? `<${type} ${attrs}>` : `<${type}>`;
+      return `${openTag}${childContent}</${type}>`;
+    }
+
+    // For React components, just extract their children's content
+    return extractContent((element.props as { children?: React.ReactNode }).children);
   }
   if (Array.isArray(children)) {
     return children.map(extractContent).join('');
