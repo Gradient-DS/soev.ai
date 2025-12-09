@@ -160,7 +160,7 @@ mcpServers:
 
   NEO NL:
     type: streamable-http
-    url: http://localhost:3434/mcp
+    url: http://host.docker.internal:3434/mcp
     headers:
       Authorization: Bearer ${NEONL_MCP_KEY}
     timeout: 60000
