@@ -86,14 +86,12 @@ export function FileSourceCitation({
   );
 
   const renderTrigger = () => {
-    // Visual distinction: clickable citations have cursor-pointer and link color
-    // Non-clickable have default cursor and muted text
+    // All file citations use the same base styling with proper truncation
+    // Matching SourceHovercard styling: border-border-heavy, dark:border-border-medium
     const baseButtonClass =
-      'ml-1 inline-flex h-5 max-w-36 items-center gap-1 overflow-hidden text-ellipsis whitespace-nowrap rounded-xl border px-2 text-xs font-medium no-underline transition-colors';
-    const clickableClass =
-      'cursor-pointer border-border-heavy bg-surface-secondary text-blue-600 hover:bg-surface-hover dark:border-border-medium dark:text-blue-400 dark:hover:bg-surface-tertiary';
-    const nonClickableClass =
-      'cursor-default border-border-light bg-surface-secondary text-text-secondary dark:border-border-light';
+      'ml-1 inline-flex h-5 max-w-36 items-center gap-1 rounded-xl border border-border-heavy px-2 text-xs font-medium no-underline transition-colors bg-surface-secondary hover:bg-surface-hover dark:border-border-medium dark:hover:bg-surface-tertiary';
+    const clickableClass = 'cursor-pointer text-blue-600 dark:text-blue-400';
+    const nonClickableClass = 'cursor-default text-text-secondary';
 
     const buttonClass = `${baseButtonClass} ${isClickable ? clickableClass : nonClickableClass}`;
 
@@ -110,7 +108,7 @@ export function FileSourceCitation({
           url={externalUrl}
           trigger={
             <button className={buttonClass} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
-              {label}
+              <span className="truncate">{label}</span>
               <ExternalLink className="h-2.5 w-2.5 flex-shrink-0" />
             </button>
           }
@@ -126,7 +124,7 @@ export function FileSourceCitation({
         onMouseLeave={onMouseLeave}
         title={isLocalFile ? localize('com_sources_download_local_unavailable') : undefined}
       >
-        {label}
+        <span className="truncate">{label}</span>
       </button>
     );
   };

@@ -197,7 +197,8 @@ export function Citation(props: CitationComponentProps) {
   });
 
   // Setup file download hook
-  const isFileType = refData?.refType === 'file' && (refData as any)?.fileId;
+  // Any source with fileId should be treated as a file type (RAG file_search, MCP, SharePoint)
+  const isFileType = !!(refData as any)?.fileId;
   const isLocalFile = isFileType && (refData as any)?.metadata?.storageType === 'local';
   const { refetch: downloadFile } = useFileDownload(
     user?.id ?? '',
