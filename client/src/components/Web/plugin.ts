@@ -1,7 +1,13 @@
 import { visit } from 'unist-util-visit';
 import type { Node } from 'unist';
 import type { Citation, CitationNode } from './types';
-import { SPAN_REGEX, STANDALONE_PATTERN, CLEANUP_REGEX, COMPOSITE_REGEX } from '~/utils/citations';
+import {
+  SPAN_REGEX,
+  STANDALONE_PATTERN,
+  PAGE_CITATION_PATTERN,
+  CLEANUP_REGEX,
+  COMPOSITE_REGEX,
+} from '~/utils/citations';
 
 const DEBUG_CITATIONS = true;
 const debugLog = (...args: unknown[]) => {
@@ -32,10 +38,21 @@ function findNextMatch(
   SPAN_REGEX.lastIndex = position;
   COMPOSITE_REGEX.lastIndex = position;
   STANDALONE_PATTERN.lastIndex = position;
+  PAGE_CITATION_PATTERN.lastIndex = position;
 
   // Find next occurrence of each pattern
   const spanMatch = SPAN_REGEX.exec(text);
   const compositeMatch = COMPOSITE_REGEX.exec(text);
+
+  // For page citations (more specific pattern - must check first)
+  let pageCitationMatch: RegExpExecArray | null = null;
+  PAGE_CITATION_PATTERN.lastIndex = position;
+  let pageMatch: RegExpExecArray | null;
+  while (!pageCitationMatch && (pageMatch = PAGE_CITATION_PATTERN.exec(text)) !== null) {
+    if (isStandaloneMarker(text, pageMatch.index)) {
+      pageCitationMatch = pageMatch;
+    }
+  }
 
   // For standalone, we need to check each match
   let standaloneMatch: RegExpExecArray | null = null;
@@ -45,6 +62,11 @@ function findNextMatch(
   let match: RegExpExecArray | null;
   while (!standaloneMatch && (match = STANDALONE_PATTERN.exec(text)) !== null) {
     if (isStandaloneMarker(text, match.index)) {
+      // Skip if this is actually a page citation (has 'p' followed by digits after the index)
+      const afterMatch = text.substring(match.index + match[0].length);
+      if (afterMatch.match(/^p\d+/)) {
+        continue; // This is a page citation, skip it for standalone
+      }
       standaloneMatch = match;
     }
   }
@@ -67,6 +89,17 @@ function findNextMatch(
     nextMatch = compositeMatch;
     matchType = 'composite';
     matchIndex = compositeMatch.index;
+    typeIndex = 0;
+  }
+
+  // Check page citation before standalone (more specific)
+  if (
+    pageCitationMatch &&
+    (!nextMatch || pageCitationMatch.index < matchIndex || matchIndex === -1)
+  ) {
+    nextMatch = pageCitationMatch;
+    matchType = 'page-citation';
+    matchIndex = pageCitationMatch.index;
     typeIndex = 0;
   }
 
@@ -109,7 +142,7 @@ function processTree(tree: Node) {
     // Important change: Create a map to track citation IDs by their position
     // This ensures consistent IDs across multiple segments
     const citationIds = new Map<number, string>();
-    const typeCounts = { span: 0, composite: 0, standalone: 0 };
+    const typeCounts = { span: 0, composite: 0, standalone: 0, 'page-citation': 0 };
 
     while (currentPosition < originalValue.length) {
       const nextMatchInfo = findNextMatch(originalValue, currentPosition);
@@ -156,7 +189,9 @@ function processTree(tree: Node) {
           const nextCitation = findNextMatch(originalValue, endOfSpan);
           if (
             nextCitation &&
-            (nextCitation.type === 'standalone' || nextCitation.type === 'composite') &&
+            (nextCitation.type === 'standalone' ||
+              nextCitation.type === 'composite' ||
+              nextCitation.type === 'page-citation') &&
             nextCitation.match!.index - endOfSpan < 5
           ) {
             // Use the ID that will be generated for the next citation
@@ -242,6 +277,36 @@ function processTree(tree: Node) {
           typeCounts.standalone++;
           break;
         }
+
+        case 'page-citation': {
+          // Extract reference info including page number
+          // Format: \ue202turn{N}{type}{index}p{page}
+          const turn = Number(match![1]);
+          const refType = match![2];
+          const refIndex = Number(match![3]);
+          const page = Number(match![4]);
+
+          segments.push({
+            type: 'citation',
+            data: {
+              hName: 'citation',
+              hProperties: {
+                // JSON stringify to survive rehype-raw HTML serialization
+                'data-citation': JSON.stringify({
+                  turn,
+                  refType,
+                  index: refIndex,
+                  page,
+                }),
+                'data-citation-type': 'page-citation',
+                'data-citation-id': citationId,
+              },
+            },
+          });
+
+          typeCounts['page-citation']++;
+          break;
+        }
       }
 
       // Move position forward
@@ -250,6 +315,16 @@ function processTree(tree: Node) {
 
     // Replace the original node with our segments or clean up the original
     if (segments.length > 0 && index !== undefined) {
+      // Log detailed info about citation segments
+      const citationSegments = segments.filter(s => s.type === 'citation' || s.data?.hName === 'citation');
+      if (citationSegments.length > 0) {
+        console.log('[unicodeCitation] CITATION SEGMENTS CREATED:', citationSegments.map(s => ({
+          type: s.type,
+          hName: s.data?.hName,
+          hProperties: s.data?.hProperties,
+          fullSegment: JSON.stringify(s),
+        })));
+      }
       debugLog('Replacing text node with', segments.length, 'segments:', segments.map(s => ({ type: s.type, hName: s.data?.hName })));
       parentNode.children?.splice(index, 1, ...segments);
       return index + segments.length;
@@ -264,6 +339,8 @@ function processTree(tree: Node) {
 
 export function unicodeCitation() {
   return (tree: Node) => {
+    console.log('[unicodeCitation] Plugin called');
     processTree(tree);
+    console.log('[unicodeCitation] Plugin finished');
   };
 }

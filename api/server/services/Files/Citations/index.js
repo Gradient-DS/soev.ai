@@ -71,9 +71,14 @@ async function processFileCitations({ user, appConfig, toolArtifact, toolCallId,
     const enhancedSources = await enhanceSourcesWithMetadata(selectedSources, appConfig);
 
     if (enhancedSources.length > 0) {
+      // Preserve sourceKey from the artifact for server-name-based citations
+      const sourceKey = toolArtifact[Tools.file_search].sourceKey;
       const fileSearchAttachment = {
         type: Tools.file_search,
-        [Tools.file_search]: { sources: enhancedSources },
+        [Tools.file_search]: {
+          sources: enhancedSources,
+          ...(sourceKey && { sourceKey }),
+        },
         toolCallId: toolCallId,
         messageId: metadata.run_id,
         conversationId: metadata.thread_id,
@@ -140,8 +145,20 @@ async function enhanceSourcesWithMetadata(sources, appConfig) {
     const fileRecord = fileMetadataMap[source.fileId] || {};
     const configuredStorageType = fileRecord.source || appConfig?.fileStrategy || FileSources.local;
 
+    // Determine origin based on storage type and existing metadata
+    let origin = source.origin || 'file_search';
+    if (!source.origin) {
+      if (configuredStorageType === 'sharepoint' || source.metadata?.url?.includes('sharepoint')) {
+        origin = 'sharepoint';
+      } else if (source.metadata?.url) {
+        // Has external URL, likely from MCP
+        origin = 'mcp';
+      }
+    }
+
     return {
       ...source,
+      origin,
       fileName: fileRecord.filename || source.fileName || 'Unknown File',
       metadata: {
         ...source.metadata,

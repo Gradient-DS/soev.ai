@@ -3,7 +3,7 @@ import { useRecoilValue } from 'recoil';
 import * as Ariakit from '@ariakit/react';
 import { VisuallyHidden } from '@ariakit/react';
 import { Tools } from 'librechat-data-provider';
-import { X, Globe, Newspaper, Image, ChevronDown, File, Download } from 'lucide-react';
+import { X, Globe, Newspaper, Image, ChevronDown, File, Download, Cloud } from 'lucide-react';
 import {
   OGDialog,
   AnimatedTabs,
@@ -14,6 +14,7 @@ import {
   useToastContext,
 } from '@librechat/client';
 import type { ValidSource, ImageResult } from 'librechat-data-provider';
+import type { CitationOrigin } from '~/@types/citations';
 import { FaviconImage, getCleanDomain } from '~/components/Web/SourceHovercard';
 import { MCPFileItem } from '~/components/Web/MCPFileItem';
 import SourcesErrorBoundary from './SourcesErrorBoundary';
@@ -172,6 +173,12 @@ type AgentFileSource = {
   messageId: string;
   toolCallId: string;
   metadata?: any;
+  origin?: CitationOrigin;
+};
+
+// Extended ValidSource with origin
+type SourceWithOrigin = ValidSource & {
+  origin?: CitationOrigin;
 };
 
 interface FileItemProps {
@@ -386,7 +393,7 @@ const SourcesGroup = React.memo(function SourcesGroup({
   sources,
   limit = 3,
 }: {
-  sources: ValidSource[];
+  sources: SourceWithOrigin[];
   limit?: number;
 }) {
   const localize = useLocalize();
@@ -584,17 +591,29 @@ function SourcesComponent({ messageId, conversationId }: SourcesProps = {}) {
     firstResultOrganicCount: searchResults ? Object.values(searchResults)[0]?.organic?.length : 0,
   });
 
-  // Simple search results processing with good memoization
-  const { organicSources, topStories, images, hasAnswerBox, agentFiles } = useMemo(() => {
-    const organicSourcesMap = new Map<string, ValidSource>();
-    const topStoriesMap = new Map<string, ValidSource>();
+  // Search results processing with origin-based grouping
+  const {
+    webSources,
+    sharePointSources,
+    fileSources,
+    topStories,
+    images,
+    hasAnswerBox,
+    agentFiles,
+  } = useMemo(() => {
+    const webSourcesMap = new Map<string, SourceWithOrigin>();
+    const sharePointSourcesMap = new Map<string, SourceWithOrigin>();
+    const fileSourcesMap = new Map<string, SourceWithOrigin>();
+    const topStoriesMap = new Map<string, SourceWithOrigin>();
     const imagesMap = new Map<string, ImageResult>();
     const agentFilesMap = new Map<string, AgentFileSource>();
     let hasAnswerBox = false;
 
     if (!searchResults) {
       return {
-        organicSources: [],
+        webSources: [],
+        sharePointSources: [],
+        fileSources: [],
         topStories: [],
         images: [],
         hasAnswerBox: false,
@@ -602,13 +621,27 @@ function SourcesComponent({ messageId, conversationId }: SourcesProps = {}) {
       };
     }
 
+    // Helper to categorize source by origin
+    const categorizeSource = (source: SourceWithOrigin, fallbackOrigin?: CitationOrigin) => {
+      const origin = source.origin || fallbackOrigin || 'web_search';
+
+      if (origin === 'sharepoint') {
+        if (source.link) sharePointSourcesMap.set(source.link, { ...source, origin });
+      } else if (origin === 'web_search') {
+        if (source.link) webSourcesMap.set(source.link, { ...source, origin });
+      } else {
+        // file_search, mcp, rag go to file sources
+        if (source.link) fileSourcesMap.set(source.link, { ...source, origin });
+      }
+    };
+
     // Process search results
     for (const result of Object.values(searchResults)) {
       if (!result) continue;
 
-      // Process organic sources
+      // Process organic sources (typically web search results)
       result.organic?.forEach((source) => {
-        if (source.link) organicSourcesMap.set(source.link, source);
+        categorizeSource(source as SourceWithOrigin, 'web_search');
       });
 
       // Process references
@@ -619,6 +652,7 @@ function SourcesComponent({ messageId, conversationId }: SourcesProps = {}) {
           const fileId = (source as any).fileId || 'unknown';
           const fileName = source.title || 'Unknown File';
           const uniqueKey = `${fileId}_${fileName}`;
+          const sourceOrigin = (source as any).origin as CitationOrigin | undefined;
 
           if (agentFilesMap.has(uniqueKey)) {
             // Merge pages for the same file
@@ -645,17 +679,19 @@ function SourcesComponent({ messageId, conversationId }: SourcesProps = {}) {
               pageRelevance: (source as any).pageRelevance,
               messageId: messageId || '',
               toolCallId: 'file_search_results',
+              origin: sourceOrigin || 'file_search',
             };
             agentFilesMap.set(uniqueKey, agentFile);
           }
         } else if (source.link) {
-          organicSourcesMap.set(source.link, source);
+          // Non-file references - categorize by origin
+          categorizeSource(source as SourceWithOrigin);
         }
       });
 
       // Process top stories
       result.topStories?.forEach((source) => {
-        if (source.link) topStoriesMap.set(source.link, source);
+        if (source.link) topStoriesMap.set(source.link, { ...source, origin: 'web_search' } as SourceWithOrigin);
       });
 
       // Process images
@@ -667,7 +703,9 @@ function SourcesComponent({ messageId, conversationId }: SourcesProps = {}) {
     }
 
     return {
-      organicSources: Array.from(organicSourcesMap.values()),
+      webSources: Array.from(webSourcesMap.values()),
+      sharePointSources: Array.from(sharePointSourcesMap.values()),
+      fileSources: Array.from(fileSourcesMap.values()),
       topStories: Array.from(topStoriesMap.values()),
       images: Array.from(imagesMap.values()),
       hasAnswerBox,
@@ -675,16 +713,78 @@ function SourcesComponent({ messageId, conversationId }: SourcesProps = {}) {
     };
   }, [searchResults, messageId]);
 
+  // Separate agent files by origin for tabs
+  const { sharePointFiles, otherFiles } = useMemo(() => {
+    const sharePoint: AgentFileSource[] = [];
+    const other: AgentFileSource[] = [];
+
+    agentFiles.forEach((file) => {
+      if (file.origin === 'sharepoint') {
+        sharePoint.push(file);
+      } else {
+        other.push(file);
+      }
+    });
+
+    return { sharePointFiles: sharePoint, otherFiles: other };
+  }, [agentFiles]);
+
   const tabs = useMemo(() => {
     const availableTabs: Array<{ label: React.ReactNode; content: React.ReactNode }> = [];
 
-    if (organicSources.length || topStories.length || hasAnswerBox) {
+    // Web tab - web search sources (includes top stories for this tab)
+    if (webSources.length || topStories.length || hasAnswerBox) {
       availableTabs.push({
-        label: <TabWithIcon label={localize('com_sources_tab_all')} icon={<Globe />} />,
-        content: <SourcesGroup sources={[...organicSources, ...topStories]} />,
+        label: <TabWithIcon label={localize('com_sources_tab_web')} icon={<Globe />} />,
+        content: <SourcesGroup sources={[...webSources, ...topStories]} />,
       });
     }
 
+    // SharePoint tab - SharePoint/OneDrive sources (both file-like and link-like)
+    const hasSharePointSources = sharePointSources.length > 0 || sharePointFiles.length > 0;
+    if (hasSharePointSources && messageId && conversationId) {
+      availableTabs.push({
+        label: <TabWithIcon label={localize('com_sources_tab_sharepoint')} icon={<Cloud />} />,
+        content: (
+          <div className="space-y-4">
+            {sharePointSources.length > 0 && (
+              <SourcesGroup sources={sharePointSources} limit={3} />
+            )}
+            {sharePointFiles.length > 0 && (
+              <FilesGroup
+                files={sharePointFiles}
+                messageId={messageId}
+                conversationId={conversationId}
+                limit={3}
+              />
+            )}
+          </div>
+        ),
+      });
+    }
+
+    // Files tab - local file_search, MCP, RAG files (non-SharePoint)
+    const hasFileSources = fileSources.length > 0 || otherFiles.length > 0;
+    if (hasFileSources && messageId && conversationId) {
+      availableTabs.push({
+        label: <TabWithIcon label={localize('com_sources_tab_files')} icon={<File />} />,
+        content: (
+          <div className="space-y-4">
+            {fileSources.length > 0 && <SourcesGroup sources={fileSources} limit={3} />}
+            {otherFiles.length > 0 && (
+              <FilesGroup
+                files={otherFiles}
+                messageId={messageId}
+                conversationId={conversationId}
+                limit={3}
+              />
+            )}
+          </div>
+        ),
+      });
+    }
+
+    // News tab - top stories (for dedicated view)
     if (topStories.length) {
       availableTabs.push({
         label: <TabWithIcon label={localize('com_sources_tab_news')} icon={<Newspaper />} />,
@@ -692,6 +792,7 @@ function SourcesComponent({ messageId, conversationId }: SourcesProps = {}) {
       });
     }
 
+    // Images tab
     if (images.length) {
       availableTabs.push({
         label: <TabWithIcon label={localize('com_sources_tab_images')} icon={<Image />} />,
@@ -705,27 +806,16 @@ function SourcesComponent({ messageId, conversationId }: SourcesProps = {}) {
       });
     }
 
-    if (agentFiles.length && messageId && conversationId) {
-      availableTabs.push({
-        label: <TabWithIcon label={localize('com_sources_tab_files')} icon={<File />} />,
-        content: (
-          <FilesGroup
-            files={agentFiles}
-            messageId={messageId}
-            conversationId={conversationId}
-            limit={3}
-          />
-        ),
-      });
-    }
-
     return availableTabs;
   }, [
-    organicSources,
+    webSources,
+    sharePointSources,
+    fileSources,
     topStories,
     images,
     hasAnswerBox,
-    agentFiles,
+    sharePointFiles,
+    otherFiles,
     messageId,
     conversationId,
     localize,

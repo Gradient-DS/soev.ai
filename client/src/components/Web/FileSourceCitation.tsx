@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { useRecoilValue } from 'recoil';
 import * as Ariakit from '@ariakit/react';
 import { VisuallyHidden } from '@ariakit/react';
-import { ChevronDown, Paperclip } from 'lucide-react';
+import { ChevronDown, Paperclip, ExternalLink } from 'lucide-react';
 import { useToastContext } from '@librechat/client';
 import { ExternalLinkDialog } from './ExternalLinkDialog';
 import { useFileDownload } from '~/data-provider';
@@ -13,6 +13,9 @@ interface FileSourceCitationProps {
   source: any;
   label: string;
   citationId?: string;
+  page?: number;
+  hasExternalUrl?: boolean;
+  onExternalUrlClick?: (e: React.MouseEvent) => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
 }
@@ -21,6 +24,9 @@ export function FileSourceCitation({
   source,
   label,
   citationId,
+  page,
+  hasExternalUrl: hasExternalUrlProp,
+  onExternalUrlClick,
   onMouseEnter,
   onMouseLeave,
 }: FileSourceCitationProps) {
@@ -30,7 +36,8 @@ export function FileSourceCitation({
 
   const isLocalFile = source?.metadata?.storageType === 'local';
   const externalUrl = source?.metadata?.url;
-  const hasExternalUrl = !!externalUrl;
+  const hasExternalUrl = hasExternalUrlProp ?? !!externalUrl;
+  const isClickable = hasExternalUrl || (!isLocalFile && source?.fileId);
 
   const { refetch: downloadFile } = useFileDownload(
     user?.id ?? '',
@@ -79,8 +86,21 @@ export function FileSourceCitation({
   );
 
   const renderTrigger = () => {
-    const buttonClass =
-      'ml-1 inline-block h-5 max-w-36 cursor-pointer items-center overflow-hidden text-ellipsis whitespace-nowrap rounded-xl border border-border-heavy bg-surface-secondary px-2 text-xs font-medium text-blue-600 no-underline transition-colors hover:bg-surface-hover dark:border-border-medium dark:text-blue-400 dark:hover:bg-surface-tertiary';
+    // All file citations use the same base styling with proper truncation
+    // Matching SourceHovercard styling: border-border-heavy, dark:border-border-medium
+    const baseButtonClass =
+      'ml-1 inline-flex h-5 max-w-36 items-center gap-1 rounded-xl border border-border-heavy px-2 text-xs font-medium no-underline transition-colors bg-surface-secondary hover:bg-surface-hover dark:border-border-medium dark:hover:bg-surface-tertiary';
+    const clickableClass = 'cursor-pointer text-blue-600 dark:text-blue-400';
+    const nonClickableClass = 'cursor-default text-text-secondary';
+
+    const buttonClass = `${baseButtonClass} ${isClickable ? clickableClass : nonClickableClass}`;
+
+    // Handler for click - either external URL or file download
+    const handleClick = hasExternalUrl
+      ? onExternalUrlClick
+      : !isLocalFile
+        ? handleFileDownload
+        : undefined;
 
     if (hasExternalUrl && externalUrl) {
       return (
@@ -88,7 +108,8 @@ export function FileSourceCitation({
           url={externalUrl}
           trigger={
             <button className={buttonClass} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
-              {label}
+              <span className="truncate">{label}</span>
+              <ExternalLink className="h-2.5 w-2.5 flex-shrink-0" />
             </button>
           }
         />
@@ -97,13 +118,13 @@ export function FileSourceCitation({
 
     return (
       <button
-        onClick={!isLocalFile ? handleFileDownload : undefined}
+        onClick={handleClick}
         className={buttonClass}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
         title={isLocalFile ? localize('com_sources_download_local_unavailable') : undefined}
       >
-        {label}
+        <span className="truncate">{label}</span>
       </button>
     );
   };

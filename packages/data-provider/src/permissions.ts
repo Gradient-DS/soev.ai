@@ -52,6 +52,11 @@ export enum PermissionTypes {
    * Type for using the "File Citations" feature in agents
    */
   FILE_CITATIONS = 'FILE_CITATIONS',
+  /**
+   * Type for MCP Server access permissions (soev.ai)
+   * Stores per-server access as serverName -> boolean
+   */
+  MCP_SERVERS = 'MCP_SERVERS',
 }
 
 /**
@@ -144,6 +149,11 @@ export const fileCitationsPermissionsSchema = z.object({
 });
 export type TFileCitationsPermissions = z.infer<typeof fileCitationsPermissionsSchema>;
 
+// soev.ai: MCP Servers permissions - dynamic keys (server names) mapping to boolean
+// Empty object means all servers are enabled (default)
+export const mcpServersPermissionsSchema = z.record(z.string(), z.boolean()).default({});
+export type TMCPServersPermissions = z.infer<typeof mcpServersPermissionsSchema>;
+
 // Define a single permissions schema that holds all permission types.
 export const permissionsSchema = z.object({
   [PermissionTypes.PROMPTS]: promptPermissionsSchema,
@@ -158,4 +168,5 @@ export const permissionsSchema = z.object({
   [PermissionTypes.MARKETPLACE]: marketplacePermissionsSchema,
   [PermissionTypes.FILE_SEARCH]: fileSearchPermissionsSchema,
   [PermissionTypes.FILE_CITATIONS]: fileCitationsPermissionsSchema,
+  [PermissionTypes.MCP_SERVERS]: mcpServersPermissionsSchema, // soev.ai
 });

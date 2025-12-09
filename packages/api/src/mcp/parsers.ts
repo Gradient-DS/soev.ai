@@ -88,17 +88,23 @@ function parseAsString(result: t.MCPToolCallResponse): string {
  *
  * @param  result - The MCPToolCallResponse object
  * @param provider - The provider name (google, anthropic, openai)
+ * @param options - Optional configuration including serverName and fileCitations flag
  * @returns Tuple of content and image_urls
  */
 export function formatToolContent(
   result: t.MCPToolCallResponse,
   provider: t.Provider,
+  options?: {
+    serverName?: string;
+    fileCitations?: boolean;
+  },
 ): t.FormattedContentResult {
   console.log('[MCP parsers] formatToolContent called with:', {
     provider,
     resultType: typeof result,
     hasContent: !!result?.content,
     contentLength: result?.content?.length,
+    options: options, // DEBUG: Log the options to see serverName
     rawResult: JSON.stringify(result, null, 2),
   });
 
@@ -193,9 +199,18 @@ export function formatToolContent(
             const sources = Array.isArray(parsed?.sources)
               ? (parsed.sources
                   .filter(isValidSource)
-                  .map((s) => ({ ...s, sourceType: 'mcp' })) as t.MCPFileSearchSource[])
+                  .map((s) => {
+                    // Determine origin based on metadata
+                    const meta = (s as t.MCPFileSearchSource).metadata;
+                    let origin: 'mcp' | 'sharepoint' | 'file_search' = 'mcp';
+                    if (meta?.storageType === 'sharepoint' || meta?.url?.includes('sharepoint')) {
+                      origin = 'sharepoint';
+                    }
+                    return { ...s, sourceType: 'mcp', origin };
+                  }) as t.MCPFileSearchSource[])
               : [];
-            const fileCitations = Boolean(parsed?.fileCitations);
+            // Config takes precedence over tool response value
+            const fileCitations = options?.fileCitations ?? Boolean(parsed?.fileCitations);
     
             console.log('[MCP parsers] Extracted file_search artifacts:', {
               sourcesCount: sources.length,
@@ -203,23 +218,27 @@ export function formatToolContent(
               sources,
             });
     
-            // Store artifacts for later
+            // Create a sanitized source key from the server name for citation markers
+            const sourceKey = (options?.serverName || 'mcp')
+              .toLowerCase()
+              .replace(/[^a-z0-9]/g, '_')
+              .replace(/^_+|_+$/g, '') // trim leading/trailing underscores
+              .replace(/_+/g, '_'); // collapse multiple underscores
+
+            // Store artifacts for later - include sourceKey for frontend mapping
             artifacts = {
               ...(artifacts || {}),
-              [Tools.file_search]: { sources, fileCitations },
+              [Tools.file_search]: { sources, fileCitations, sourceKey },
             };
     
             // INJECT CITATION MARKERS into the current text block
             if (fileCitations && sources.length > 0) {
-              console.log('[MCP parsers] Injecting citation markers into text');
-              
+              console.log('[MCP parsers] Injecting citation markers with sourceKey:', sourceKey);
+
               // Add citation reference guide to the text
-              let citationGuide = '\n\n**Available Citations (use these exact markers in your response):**\n';
+              let citationGuide = `\n\n**Available Citations from ${options?.serverName || 'MCP'} (use these exact markers in your response):**\n`;
               sources.forEach((source, index) => {
                 const fileName = source.fileName || `Source ${index}`;
-                const pages = source.pages && source.pages.length > 0 
-                  ? ` (pages: ${source.pages.join(', ')})` 
-                  : '';
                 const metadata = [];
                 if (source.metadata?.year) {
                   metadata.push(source.metadata.year);
@@ -228,10 +247,19 @@ export function formatToolContent(
                   metadata.push(source.metadata.contentsubtype);
                 }
                 const metadataStr = metadata.length > 0 ? ` [${metadata.join(', ')}]` : '';
-                // Use double backslash to create literal \ue202 string
-                citationGuide += `- ${fileName}${pages}${metadataStr}: \\ue202turn0file${index}\n`;
+
+                // Server-name-based citation marker: \ue202turn0{sourceKey}{index}
+                citationGuide += `- ${fileName}${metadataStr}: \\ue202turn0${sourceKey}${index}\n`;
+
+                // Page-level citation markers when pages are available
+                if (source.pages && source.pages.length > 0) {
+                  citationGuide += `  Page-level citations:\n`;
+                  source.pages.forEach((page) => {
+                    citationGuide += `  - Page ${page}: \\ue202turn0${sourceKey}${index}p${page}\n`;
+                  });
+                }
               });
-              
+
               currentTextBlock += citationGuide;
             }
           }

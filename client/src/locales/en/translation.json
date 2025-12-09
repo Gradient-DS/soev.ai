@@ -622,6 +622,8 @@
   "com_sources_tab_files": "Files",
   "com_sources_tab_images": "Images",
   "com_sources_tab_news": "News",
+  "com_sources_tab_web": "Web",
+  "com_sources_tab_sharepoint": "SharePoint",
   "com_sources_title": "Sources",
   "com_external_link_warning_title": "Leaving soev.ai",
   "com_external_link_warning_message": "You are about to visit an external website. Please verify the URL before proceeding.",

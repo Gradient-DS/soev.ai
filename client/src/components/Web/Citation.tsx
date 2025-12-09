@@ -145,8 +145,17 @@ interface CitationComponentProps {
 }
 
 export function Citation(props: CitationComponentProps) {
+  console.log('[Citation] Component rendered with props:', {
+    keys: Object.keys(props),
+    dataCitation: props['data-citation'],
+    dataCitationType: props['data-citation-type'],
+    dataCitationId: props['data-citation-id'],
+    hasNode: !!props.node,
+    nodeProperties: props.node?.properties,
+  });
+
   // Parse data from either old format (node.properties) or new data-* attributes
-  let citation: { turn: number; refType: string; index: number } | undefined;
+  let citation: { turn: number; refType: string; index: number; page?: number } | undefined;
   let citationId: string | undefined;
 
   // Try new data-* format first (survives rehype-raw)
@@ -184,10 +193,12 @@ export function Citation(props: CitationComponentProps) {
     turn: citation?.turn || 0,
     refType: citation?.refType,
     index: citation?.index || 0,
+    page: citation?.page,
   });
 
   // Setup file download hook
-  const isFileType = refData?.refType === 'file' && (refData as any)?.fileId;
+  // Any source with fileId should be treated as a file type (RAG file_search, MCP, SharePoint)
+  const isFileType = !!(refData as any)?.fileId;
   const isLocalFile = isFileType && (refData as any)?.metadata?.storageType === 'local';
   const { refetch: downloadFile } = useFileDownload(
     user?.id ?? '',
@@ -240,13 +251,35 @@ export function Citation(props: CitationComponentProps) {
 
   if (!refData) return null;
 
+  // Check if there's an external URL available for click-to-open
+  const externalUrl = (refData as any)?.metadata?.url || (refData as any)?.link;
+  const hasExternalUrl =
+    externalUrl && typeof externalUrl === 'string' && externalUrl.startsWith('http');
+
+  // Handler for opening external URL
+  const handleExternalUrlClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (!hasExternalUrl) return;
+      e.preventDefault();
+      e.stopPropagation();
+      window.open(externalUrl, '_blank', 'noopener,noreferrer');
+    },
+    [hasExternalUrl, externalUrl],
+  );
+
   const getCitationLabel = () => {
-    return (
+    let label =
       refData.attribution ||
       refData.title ||
       getCleanDomain(refData.link || '') ||
-      localize('com_citation_source')
-    );
+      localize('com_citation_source');
+
+    // Add page number to label if present
+    if (citation?.page !== undefined) {
+      label = `${label}, p.${citation.page}`;
+    }
+
+    return label;
   };
 
   // Use FileSourceCitation for file types (MCP sources with metadata)
@@ -256,11 +289,17 @@ export function Citation(props: CitationComponentProps) {
         source={refData}
         label={getCitationLabel()}
         citationId={citationId || undefined}
+        page={citation?.page}
+        hasExternalUrl={hasExternalUrl}
+        onExternalUrlClick={hasExternalUrl ? handleExternalUrlClick : undefined}
         onMouseEnter={() => setHoveredCitationId(citationId || null)}
         onMouseLeave={() => setHoveredCitationId(null)}
       />
     );
   }
+
+  // For web search results, clicking opens the link
+  const handleClick = hasExternalUrl ? handleExternalUrlClick : undefined;
 
   return (
     <SourceHovercard
@@ -268,9 +307,10 @@ export function Citation(props: CitationComponentProps) {
       label={getCitationLabel()}
       onMouseEnter={() => setHoveredCitationId(citationId || null)}
       onMouseLeave={() => setHoveredCitationId(null)}
-      onClick={isFileType && !isLocalFile ? handleFileDownload : undefined}
+      onClick={handleClick}
       isFile={isFileType}
       isLocalFile={isLocalFile}
+      hasExternalUrl={hasExternalUrl}
     />
   );
 }

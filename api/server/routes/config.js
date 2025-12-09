@@ -17,10 +17,9 @@ const { mcpServersRegistry } = require('@librechat/api');
 // soev.ai: Admin panel config overrides
 let getAdminConfigOverrides = null;
 try {
-  getAdminConfigOverrides =
-    require('../../packages/librechat-admin/dist/services/adminSettingsService').getAdminConfigOverrides;
+  getAdminConfigOverrides = require('@soev.ai/librechat-admin').getAdminConfigOverrides;
 } catch (e) {
-  // Admin module not installed or not built - ignore
+  logger.debug('[config] Admin module not loaded (getAdminConfigOverrides):', e.message);
 }
 
 /**
@@ -68,12 +67,21 @@ const publicSharedLinksEnabled =
 const sharePointFilePickerEnabled = isEnabled(process.env.ENABLE_SHAREPOINT_FILEPICKER);
 const openidReuseTokens = isEnabled(process.env.OPENID_REUSE_TOKENS);
 
+// soev.ai: Get MCP server permissions for a role
+let getMCPServerPermissionsForRole = null;
+try {
+  getMCPServerPermissionsForRole = require('@soev.ai/librechat-admin').getMCPServerPermissions;
+} catch (e) {
+  logger.debug('[config] Admin module not loaded (getMCPServerPermissions):', e.message);
+}
+
 /**
  * Fetches MCP servers from registry and adds them to the payload.
  * Registry now includes all configured servers (from YAML) plus inspection data when available.
  * Always fetches fresh to avoid caching incomplete initialization state.
+ * soev.ai: Filters servers based on role permissions when available.
  */
-const getMCPServers = async (payload, appConfig) => {
+const getMCPServers = async (payload, appConfig, userRole) => {
   try {
     if (appConfig?.mcpConfig == null) {
       return;
@@ -84,7 +92,28 @@ const getMCPServers = async (payload, appConfig) => {
     }
     const mcpServers = await mcpServersRegistry.getAllServerConfigs();
     if (!mcpServers) return;
+
+    // soev.ai: Get MCP permissions for the user's role
+    // Note: userRole may be undefined for unauthenticated requests (initial page load)
+    // Client-side filtering handles UX; this provides defense-in-depth for authenticated requests
+    let mcpPermissions = {};
+    if (getMCPServerPermissionsForRole && userRole) {
+      try {
+        mcpPermissions = await getMCPServerPermissionsForRole(userRole);
+        logger.debug(`[config] MCP permissions for role '${userRole}':`, mcpPermissions);
+      } catch (err) {
+        logger.warn('[config] Error fetching MCP permissions:', err.message);
+      }
+    }
+
     for (const serverName in mcpServers) {
+      // soev.ai: Skip if server is explicitly disabled for this role
+      // (undefined or true = enabled, false = disabled)
+      if (mcpPermissions[serverName] === false) {
+        logger.debug(`[config] Skipping MCP server '${serverName}' - disabled for role '${userRole}'`);
+        continue;
+      }
+
       if (!payload.mcpServers) {
         payload.mcpServers = {};
       }
@@ -106,11 +135,14 @@ router.get('/', async function (req, res) {
 
   let cachedStartupConfig = await cache.get(CacheKeys.STARTUP_CONFIG);
   if (cachedStartupConfig) {
+    // soev.ai: Clone the cached config to avoid mutating it (MCP servers are role-specific)
+    const responsePayload = { ...cachedStartupConfig };
+    delete responsePayload.mcpServers; // Clear any cached mcpServers
     // soev.ai: Apply admin panel overrides
-    cachedStartupConfig = await applyAdminOverrides(cachedStartupConfig);
+    const finalPayload = await applyAdminOverrides(responsePayload);
     const appConfig = await getAppConfig({ role: req.user?.role });
-    await getMCPServers(cachedStartupConfig, appConfig);
-    res.send(cachedStartupConfig);
+    await getMCPServers(finalPayload, appConfig, req.user?.role);
+    res.send(finalPayload);
     return;
   }
 
@@ -232,7 +264,7 @@ router.get('/', async function (req, res) {
     await cache.set(CacheKeys.STARTUP_CONFIG, payload);
     // soev.ai: Apply admin panel overrides before sending
     const finalPayload = await applyAdminOverrides(payload);
-    await getMCPServers(finalPayload, appConfig);
+    await getMCPServers(finalPayload, appConfig, req.user?.role);
     return res.status(200).send(finalPayload);
   } catch (err) {
     logger.error('Error in startup config', err);

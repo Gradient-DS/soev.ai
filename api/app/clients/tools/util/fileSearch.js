@@ -140,11 +140,14 @@ const createFileSearchTool = async ({ userId, files, entity_id, fileCitations = 
         // TODO: make this configurable
         .slice(0, 10);
 
+      // Use 'file_search' as sourceKey for server-name-based citation format
+      const sourceKey = 'file_search';
+
       const formattedString = formattedResults
         .map(
           (result, index) =>
             `File: ${result.filename}${
-              fileCitations ? `\nAnchor: \\ue202turn0file${index} (${result.filename})` : ''
+              fileCitations ? `\nAnchor: \\ue202turn0${sourceKey}${index} (${result.filename})` : ''
             }\nRelevance: ${(1.0 - result.distance).toFixed(4)}\nContent: ${result.content}\n`,
         )
         .join('\n---\n');
@@ -159,7 +162,8 @@ const createFileSearchTool = async ({ userId, files, entity_id, fileCitations = 
         pageRelevance: result.page ? { [result.page]: 1.0 - result.distance } : {},
       }));
 
-      return [formattedString, { [Tools.file_search]: { sources, fileCitations } }];
+      // Include sourceKey for frontend to correctly map citations to sources
+      return [formattedString, { [Tools.file_search]: { sources, fileCitations, sourceKey } }];
     },
     {
       name: Tools.file_search,
@@ -170,9 +174,9 @@ const createFileSearchTool = async ({ userId, files, entity_id, fileCitations = 
 
 **CITE FILE SEARCH RESULTS:**
 Use anchor markers immediately after statements derived from file content. Reference the filename in your text:
-- File citation: "The document.pdf states that... \\ue202turn0file0"  
-- Page reference: "According to report.docx... \\ue202turn0file1"
-- Multi-file: "Multiple sources confirm... \\ue200\\ue202turn0file0\\ue202turn0file1\\ue201"
+- File citation: "The document.pdf states that... \\ue202turn0file_search0"
+- Page reference: "According to report.docx... \\ue202turn0file_search1"
+- Multi-file: "Multiple sources confirm... \\ue200\\ue202turn0file_search0\\ue202turn0file_search1\\ue201"
 
 **ALWAYS mention the filename in your text before the citation marker. NEVER use markdown links or footnotes.**`
           : ''
