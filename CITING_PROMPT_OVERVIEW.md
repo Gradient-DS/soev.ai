@@ -9,7 +9,6 @@ Citations use Unicode markers that are parsed by the frontend and rendered as in
 | Type | Format | Example |
 |------|--------|---------|
 | Basic file | `\ue202turn{N}file{index}` | `\ue202turn0file0` |
-| Page-specific | `\ue202turn{N}file{index}p{page}` | `\ue202turn0file3p7` |
 | Web search | `\ue202turn{N}search{index}` | `\ue202turn0search0` |
 | Composite | `\ue200...\ue201` wrapper | `\ue200\ue202turn0file0\ue202turn0file1\ue201` |
 
@@ -30,7 +29,6 @@ When `fileCitations: true`, the file_search tool description includes:
 **CITE FILE SEARCH RESULTS:**
 Use anchor markers immediately after statements derived from file content. Reference the filename in your text:
 - File citation: "The document.pdf states that... \ue202turn0file0"
-- Page reference: "According to report.docx... \ue202turn0file1"
 - Multi-file: "Multiple sources confirm... \ue200\ue202turn0file0\ue202turn0file1\ue201"
 
 **ALWAYS mention the filename in your text before the citation marker. NEVER use markdown links or footnotes.**
@@ -46,9 +44,6 @@ When processing `artifact://file_search` resources with `fileCitations: true`, i
 ```
 **Available Citations (use these exact markers in your response):**
 - filename.pdf [2024, Report]: \ue202turn0file0
-  Page-level citations:
-  - Page 5: \ue202turn0file0p5
-  - Page 12: \ue202turn0file0p12
 - another.docx: \ue202turn0file1
 ```
 

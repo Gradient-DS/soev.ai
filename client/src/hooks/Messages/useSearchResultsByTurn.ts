@@ -69,15 +69,19 @@ export function useSearchResultsByTurn(attachments?: TAttachment[]) {
 
       // Handle agent file search attachments (following web search pattern)
       // Each attachment has a sourceKey that identifies the source system (e.g., 'file_search', 'sharepoint', 'airweave')
+      // and a turn number to differentiate multiple calls to the same tool
       if (attachment.type === Tools.file_search && attachment[Tools.file_search]) {
         const fileSearchData = attachment[Tools.file_search] as {
           sources: FileSource[];
           sourceKey?: string;
           fileCitations?: boolean;
+          turn?: number;
         };
         const sources = fileSearchData.sources;
         // Use sourceKey from the attachment, fallback to 'file' for legacy compatibility
         const sourceKey = fileSearchData.sourceKey || 'file';
+        // Get turn from the attachment for unique citation resolution
+        const turn = fileSearchData.turn ?? 0;
 
         // Deduplicate sources by fileId and merge pages
         const deduplicatedSources = new Map<string, DeduplicatedSource>();
@@ -117,39 +121,61 @@ export function useSearchResultsByTurn(attachments?: TAttachment[]) {
         });
 
         // Convert agent file sources to SearchResultData format
+        const references = Array.from(deduplicatedSources.values()).map(
+          (source) =>
+            ({
+              title: source.fileName || localize('com_file_unknown'),
+              // Use external URL if available, otherwise create pseudo-link
+              link: source.metadata?.url || `#file-${source.fileId}`,
+              attribution: source.fileName || localize('com_file_unknown'), // Show filename in inline display
+              snippet:
+                source.pages && source.pages.length > 0
+                  ? localize('com_file_pages', { pages: source.pages.join(', ') })
+                  : '', // Only page numbers for hover
+              type: 'file' as const,
+              // Preserve origin for grouping
+              origin: source.origin || 'file_search',
+              // Store additional agent-specific data as properties on the reference
+              fileId: source.fileId,
+              fileName: source.fileName,
+              pages: source.pages,
+              pageRelevance: source.pageRelevance,
+              metadata: source.metadata,
+            }) as any,
+        );
+
         const agentSearchData: SearchResultData = {
-          turn: 0, // All file_search sources use turn 0, differentiated by sourceKey
+          turn, // Use actual turn from attachment
           organic: [], // Agent file search doesn't have organic web results
           topStories: [], // No top stories for file search
           images: [], // No images for file search
-          references: Array.from(deduplicatedSources.values()).map(
-            (source) =>
-              ({
-                title: source.fileName || localize('com_file_unknown'),
-                // Use external URL if available, otherwise create pseudo-link
-                link: source.metadata?.url || `#file-${source.fileId}`,
-                attribution: source.fileName || localize('com_file_unknown'), // Show filename in inline display
-                snippet:
-                  source.pages && source.pages.length > 0
-                    ? localize('com_file_pages', { pages: source.pages.join(', ') })
-                    : '', // Only page numbers for hover
-                type: 'file' as const,
-                // Preserve origin for grouping
-                origin: source.origin || 'file_search',
-                // Store additional agent-specific data as properties on the reference
-                fileId: source.fileId,
-                fileName: source.fileName,
-                pages: source.pages,
-                pageRelevance: source.pageRelevance,
-                metadata: source.metadata,
-              }) as any,
-          ),
+          references,
         };
 
-        // Use sourceKey as the map key to keep sources from different systems separate
-        // This allows citations like \ue202turn0sharepoint0 and \ue202turn0file_search0 to resolve correctly
-        console.log('[DEBUG useSearchResultsByTurn] Adding to turnMap with sourceKey:', sourceKey, 'references count:', agentSearchData.references?.length);
-        turnMap[sourceKey] = agentSearchData;
+        // Store by composite key (sourceKey_turn) for unique citation resolution
+        // This allows citations like \ue202turn0neo_nl0 and \ue202turn1neo_nl0 to resolve to different sources
+        const compositeKey = `${sourceKey}_${turn}`;
+        console.log('[DEBUG useSearchResultsByTurn] Adding to turnMap with compositeKey:', compositeKey, 'references count:', agentSearchData.references?.length);
+        turnMap[compositeKey] = agentSearchData;
+
+        // Also accumulate under sourceKey for card display (merges all turns)
+        // This keeps all sources from the same system (e.g., 'neo_nl') grouped together in the UI
+        if (!turnMap[sourceKey]) {
+          // First time seeing this sourceKey - initialize with turn=-1 to indicate accumulated
+          turnMap[sourceKey] = {
+            ...agentSearchData,
+            turn: -1, // -1 indicates this is an accumulated entry for card display
+          };
+        } else if (turnMap[sourceKey].turn === -1) {
+          // Accumulate additional references into the sourceKey entry
+          turnMap[sourceKey] = {
+            ...turnMap[sourceKey],
+            references: [
+              ...(turnMap[sourceKey].references || []),
+              ...references,
+            ],
+          };
+        }
       }
     });
 

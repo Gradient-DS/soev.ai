@@ -97,6 +97,7 @@ export function formatToolContent(
   options?: {
     serverName?: string;
     fileCitations?: boolean;
+    turn?: number;
   },
 ): t.FormattedContentResult {
   console.log('[MCP parsers] formatToolContent called with:', {
@@ -135,6 +136,7 @@ export function formatToolContent(
   let currentTextBlock = '';
   const uiResources: UIResource[] = [];
   let artifacts: t.Artifacts = undefined;
+  const turn = options?.turn ?? 0;
 
   type ContentHandler = undefined | ((item: t.ToolContentPart) => void);
 
@@ -225,10 +227,10 @@ export function formatToolContent(
               .replace(/^_+|_+$/g, '') // trim leading/trailing underscores
               .replace(/_+/g, '_'); // collapse multiple underscores
 
-            // Store artifacts for later - include sourceKey for frontend mapping
+            // Store artifacts for later - include sourceKey and turn for frontend mapping
             artifacts = {
               ...(artifacts || {}),
-              [Tools.file_search]: { sources, fileCitations, sourceKey },
+              [Tools.file_search]: { sources, fileCitations, sourceKey, turn },
             };
     
             // INJECT CITATION MARKERS into the current text block
@@ -248,14 +250,14 @@ export function formatToolContent(
                 }
                 const metadataStr = metadata.length > 0 ? ` [${metadata.join(', ')}]` : '';
 
-                // Server-name-based citation marker: \ue202turn0{sourceKey}{index}
-                citationGuide += `- ${fileName}${metadataStr}: \\ue202turn0${sourceKey}${index}\n`;
+                // Server-name-based citation marker: \ue202turn{N}{sourceKey}{index}
+                citationGuide += `- ${fileName}${metadataStr}: \\ue202turn${turn}${sourceKey}${index}\n`;
 
                 // Page-level citation markers when pages are available
                 if (source.pages && source.pages.length > 0) {
                   citationGuide += `  Page-level citations:\n`;
                   source.pages.forEach((page) => {
-                    citationGuide += `  - Page ${page}: \\ue202turn0${sourceKey}${index}p${page}\n`;
+                    citationGuide += `  - Page ${page}: \\ue202turn${turn}${sourceKey}${index}p${page}\n`;
                   });
                 }
               });

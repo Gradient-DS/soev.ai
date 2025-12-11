@@ -8,6 +8,8 @@ When multiple MCP tool calls (e.g., `search_document_mcp_NEO_NL`) are made in th
 
 ---
 
+The issue happens for the file search as well as the mcp search!
+
 ## Root Causes Identified
 
 ### 1. Per-Tool Turn Tracking (Not Global)

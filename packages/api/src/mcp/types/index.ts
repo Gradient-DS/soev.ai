@@ -151,6 +151,7 @@ export type Artifacts =
         sources: (FileSearchSource | MCPFileSearchSource)[];
         fileCitations?: boolean;
         sourceKey?: string;
+        turn?: number;
       };
       [Tools.web_search]?: SearchResultData;
       files?: Array<{ id: string; name: string }>;

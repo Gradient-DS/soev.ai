@@ -818,6 +818,7 @@ export class MCPManager {
     toolName,
     provider,
     toolArguments,
+    turn,
     options,
     tokenMethods,
     flowManager,
@@ -830,6 +831,7 @@ export class MCPManager {
     toolName: string;
     provider: t.Provider;
     toolArguments?: Record<string, unknown>;
+    turn?: number;
     options?: RequestOptions;
     tokenMethods?: TokenMethods;
     customUserVars?: Record<string, string>;
@@ -897,6 +899,7 @@ export class MCPManager {
       return formatToolContent(result as t.MCPToolCallResponse, provider, {
         serverName,
         fileCitations: serverConfig?.fileCitations,
+        turn,
       });
     } catch (error) {
       // Log with context and re-throw or handle as needed

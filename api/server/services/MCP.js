@@ -334,7 +334,7 @@ function createToolInstance({ res, toolName, serverName, toolDefinition, provide
       const mcpManager = getMCPManager(userId);
       const provider = (config?.metadata?.provider || _provider)?.toLowerCase();
 
-      const { args: _args, stepId, ...toolCall } = config.toolCall ?? {};
+      const { args: _args, stepId, turn, ...toolCall } = config.toolCall ?? {};
       const flowId = `${serverName}:oauth_login:${config.metadata.thread_id}:${config.metadata.run_id}`;
       const runStepDeltaEmitter = createRunStepDeltaEmitter({
         res,
@@ -365,6 +365,7 @@ function createToolInstance({ res, toolName, serverName, toolDefinition, provide
         toolName,
         provider,
         toolArguments,
+        turn,
         options: {
           signal: derivedSignal,
         },
