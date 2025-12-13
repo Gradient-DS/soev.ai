@@ -167,6 +167,7 @@ Please follow these instructions when using tools from the respective MCP server
     toolName,
     provider,
     toolArguments,
+    turn,
     options,
     tokenMethods,
     requestBody,
@@ -180,6 +181,7 @@ Please follow these instructions when using tools from the respective MCP server
     toolName: string;
     provider: t.Provider;
     toolArguments?: Record<string, unknown>;
+    turn?: number;
     options?: RequestOptions;
     requestBody?: RequestBody;
     tokenMethods?: TokenMethods;
@@ -249,6 +251,7 @@ Please follow these instructions when using tools from the respective MCP server
       return formatToolContent(result as t.MCPToolCallResponse, provider, {
         serverName,
         fileCitations: rawConfig?.fileCitations,
+        turn,
       });
     } catch (error) {
       // Log with context and re-throw or handle as needed

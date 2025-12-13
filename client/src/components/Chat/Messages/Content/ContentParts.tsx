@@ -7,8 +7,8 @@ import type {
   Agents,
 } from 'librechat-data-provider';
 import { MessageContext, SearchContext } from '~/Providers';
+import { CitationCardList } from '~/components/Citations';
 import MemoryArtifacts from './MemoryArtifacts';
-import Sources from '~/components/Web/Sources';
 import { mapAttachments } from '~/utils/map';
 import { EditTextPart } from './Parts';
 import Part from './Part';
@@ -99,7 +99,7 @@ const ContentParts = memo(
       <>
         <SearchContext.Provider value={{ searchResults }}>
           <MemoryArtifacts attachments={attachments} />
-          <Sources messageId={messageId} conversationId={conversationId || undefined} />
+          <CitationCardList searchResults={searchResults} messageId={messageId} />
           {content.map((part, idx) => {
             if (!part) {
               return null;

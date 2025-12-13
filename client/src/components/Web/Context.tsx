@@ -54,14 +54,19 @@ export function useCitation({
   let source: CitationSource | undefined;
 
   // Check if this is a server-name-based key (e.g., 'sharepoint', 'file_search', 'airweave')
-  // Server-name-based keys are stored directly in searchResults with 'references' array
-  if (!LEGACY_REF_TYPES.has(refTypeLower) && searchResults && searchResults[refTypeLower]) {
-    // Server-name-based format: searchResults['sharepoint'].references[index]
-    const serverData = searchResults[refTypeLower];
-    if (serverData.references && serverData.references[index]) {
-      source = serverData.references[index] as CitationSource;
+  // Server-name-based keys use composite key format: {sourceKey}_{turn}
+  if (!LEGACY_REF_TYPES.has(refTypeLower) && searchResults) {
+    // Try composite key first: searchResults['neo_nl_0'].references[index]
+    const compositeKey = `${refTypeLower}_${turn}`;
+    if (searchResults[compositeKey]?.references?.[index]) {
+      source = searchResults[compositeKey].references[index] as CitationSource;
+    } else if (searchResults[refTypeLower]?.references?.[index]) {
+      // Fallback to sourceKey-only for legacy compatibility
+      source = searchResults[refTypeLower].references[index] as CitationSource;
     }
-  } else {
+  }
+
+  if (!source) {
     // Legacy format: searchResults[turn][refType][index]
     const refType = refTypeMap[refTypeLower] ? refTypeMap[refTypeLower] : refTypeLower;
 
@@ -113,13 +118,19 @@ export function useCompositeCitations(
     let source: CitationSource | undefined;
 
     // Check if this is a server-name-based key (e.g., 'sharepoint', 'file_search', 'airweave')
-    if (!LEGACY_REF_TYPES.has(refTypeLower) && searchResults && searchResults[refTypeLower]) {
-      // Server-name-based format: searchResults['sharepoint'].references[index]
-      const serverData = searchResults[refTypeLower];
-      if (serverData.references && serverData.references[index]) {
-        source = serverData.references[index] as CitationSource;
+    // Server-name-based keys use composite key format: {sourceKey}_{turn}
+    if (!LEGACY_REF_TYPES.has(refTypeLower) && searchResults) {
+      // Try composite key first: searchResults['neo_nl_0'].references[index]
+      const compositeKey = `${refTypeLower}_${turn}`;
+      if (searchResults[compositeKey]?.references?.[index]) {
+        source = searchResults[compositeKey].references[index] as CitationSource;
+      } else if (searchResults[refTypeLower]?.references?.[index]) {
+        // Fallback to sourceKey-only for legacy compatibility
+        source = searchResults[refTypeLower].references[index] as CitationSource;
       }
-    } else {
+    }
+
+    if (!source) {
       // Legacy format: searchResults[turn][refType][index]
       const refType = refTypeMap[refTypeLower] ? refTypeMap[refTypeLower] : refTypeLower;
 

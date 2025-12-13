@@ -122,7 +122,7 @@ export type FileSearchSource = {
   [key: string]: unknown;
 };
 
-export type CitationOrigin = 'file_search' | 'web_search' | 'mcp' | 'sharepoint' | 'rag';
+export type CitationOrigin = 'file_search' | 'web_search' | 'mcp' | 'sharepoint' ;
 
 export type MCPFileSearchSource = FileSearchSource & {
   origin?: CitationOrigin;
@@ -151,6 +151,7 @@ export type Artifacts =
         sources: (FileSearchSource | MCPFileSearchSource)[];
         fileCitations?: boolean;
         sourceKey?: string;
+        turn?: number;
       };
       [Tools.web_search]?: SearchResultData;
       files?: Array<{ id: string; name: string }>;

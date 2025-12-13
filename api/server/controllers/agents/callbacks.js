@@ -1,5 +1,5 @@
 const { nanoid } = require('nanoid');
-const { sendEvent } = require('@librechat/api');
+const { sendEvent, createCitationAccumulator } = require('@librechat/api');
 const { logger } = require('@librechat/data-schemas');
 const { Tools, StepTypes, FileContext, ErrorTypes } = require('librechat-data-provider');
 const {
@@ -275,6 +275,9 @@ function getDefaultHandlers({ res, aggregateContent, toolEndCallback, collectedU
  * @returns {ToolEndCallback} The tool end callback.
  */
 function createToolEndCallback({ req, res, artifactPromises }) {
+  // Create a citation accumulator to properly merge citations from multiple tool calls
+  const citationAccumulator = createCitationAccumulator();
+
   /**
    * @type {ToolEndCallback}
    */
@@ -292,6 +295,27 @@ function createToolEndCallback({ req, res, artifactPromises }) {
       artifactPromises.push(
         (async () => {
           const user = req.user;
+          const fileSearchArtifact = output.artifact[Tools.file_search];
+
+          // Use accumulator to merge sources from multiple calls to same server
+          // This fixes the bug where second file_search overwrites previous sources
+          if (fileSearchArtifact.sources && fileSearchArtifact.sourceKey !== undefined) {
+            const turn = fileSearchArtifact.turn ?? 0;
+            const sourceKey = fileSearchArtifact.sourceKey;
+
+            // Accumulate sources - this merges with any previous sources for same turn/sourceKey
+            citationAccumulator.addSources(fileSearchArtifact.sources, turn, sourceKey);
+
+            // Get the accumulated sources for this turn/sourceKey
+            const accumulatedSources = citationAccumulator.getCitations(turn, sourceKey);
+
+            // Update the artifact with accumulated sources for processFileCitations
+            output.artifact[Tools.file_search] = {
+              ...fileSearchArtifact,
+              sources: accumulatedSources,
+            };
+          }
+
           const attachment = await processFileCitations({
             user,
             metadata,

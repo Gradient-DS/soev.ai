@@ -76,7 +76,9 @@ const primeFiles = async (options) => {
  */
 const createFileSearchTool = async ({ userId, files, entity_id, fileCitations = false }) => {
   return tool(
-    async ({ query }) => {
+    async ({ query }, config) => {
+      // Extract turn from tool call config for unique citation markers
+      const turn = config?.toolCall?.turn ?? 0;
       if (files.length === 0) {
         return ['No files to search. Instruct the user to add files for the search.', undefined];
       }
@@ -147,7 +149,7 @@ const createFileSearchTool = async ({ userId, files, entity_id, fileCitations = 
         .map(
           (result, index) =>
             `File: ${result.filename}${
-              fileCitations ? `\nAnchor: \\ue202turn0${sourceKey}${index} (${result.filename})` : ''
+              fileCitations ? `\nAnchor: \\ue202turn${turn}${sourceKey}${index} (${result.filename})` : ''
             }\nRelevance: ${(1.0 - result.distance).toFixed(4)}\nContent: ${result.content}\n`,
         )
         .join('\n---\n');
@@ -162,8 +164,8 @@ const createFileSearchTool = async ({ userId, files, entity_id, fileCitations = 
         pageRelevance: result.page ? { [result.page]: 1.0 - result.distance } : {},
       }));
 
-      // Include sourceKey for frontend to correctly map citations to sources
-      return [formattedString, { [Tools.file_search]: { sources, fileCitations, sourceKey } }];
+      // Include sourceKey and turn for frontend to correctly map citations to sources
+      return [formattedString, { [Tools.file_search]: { sources, fileCitations, sourceKey, turn } }];
     },
     {
       name: Tools.file_search,
@@ -173,10 +175,10 @@ const createFileSearchTool = async ({ userId, files, entity_id, fileCitations = 
           ? `
 
 **CITE FILE SEARCH RESULTS:**
-Use anchor markers immediately after statements derived from file content. Reference the filename in your text:
-- File citation: "The document.pdf states that... \\ue202turn0file_search0"
-- Page reference: "According to report.docx... \\ue202turn0file_search1"
-- Multi-file: "Multiple sources confirm... \\ue200\\ue202turn0file_search0\\ue202turn0file_search1\\ue201"
+Use the anchor markers provided in the tool output immediately after statements derived from file content. Reference the filename in your text:
+- File citation: "The document.pdf states that... [anchor from output]"
+- Page reference: "According to report.docx... [anchor from output]"
+- Multi-file: "Multiple sources confirm... \\ue200[anchor1][anchor2]\\ue201"
 
 **ALWAYS mention the filename in your text before the citation marker. NEVER use markdown links or footnotes.**`
           : ''
