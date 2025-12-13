@@ -11,7 +11,6 @@ export type CitationOrigin =
   | 'web_search' // Web search tool
   | 'mcp' // Generic MCP server
   | 'sharepoint' // SharePoint/OneDrive via Airweave
-  | 'rag'; // External RAG system
 
 /**
  * Enhanced fields added to sources at runtime
