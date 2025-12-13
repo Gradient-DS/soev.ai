@@ -38,6 +38,8 @@ export * from './tools';
 export * from './web';
 /* Cache */
 export * from './cache';
+/* Citations */
+export * from './citations';
 /* types */
 export type * from './mcp/types';
 export type * from './flow/types';

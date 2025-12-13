@@ -1,6 +1,7 @@
 import { Tools } from 'librechat-data-provider';
 import type { UIResource } from 'librechat-data-provider';
 import type * as t from './types';
+import { generateCitationMarkers, sanitizeSourceKey } from '../citations';
 
 const RECOGNIZED_PROVIDERS = new Set([
   'google',
@@ -221,11 +222,7 @@ export function formatToolContent(
             });
     
             // Create a sanitized source key from the server name for citation markers
-            const sourceKey = (options?.serverName || 'mcp')
-              .toLowerCase()
-              .replace(/[^a-z0-9]/g, '_')
-              .replace(/^_+|_+$/g, '') // trim leading/trailing underscores
-              .replace(/_+/g, '_'); // collapse multiple underscores
+            const sourceKey = sanitizeSourceKey(options?.serverName || 'mcp');
 
             // Store artifacts for later - include sourceKey and turn for frontend mapping
             artifacts = {
@@ -237,31 +234,13 @@ export function formatToolContent(
             if (fileCitations && sources.length > 0) {
               console.log('[MCP parsers] Injecting citation markers with sourceKey:', sourceKey);
 
-              // Add citation reference guide to the text
-              let citationGuide = `\n\n**Available Citations from ${options?.serverName || 'MCP'} (use these exact markers in your response):**\n`;
-              sources.forEach((source, index) => {
-                const fileName = source.fileName || `Source ${index}`;
-                const metadata = [];
-                if (source.metadata?.year) {
-                  metadata.push(source.metadata.year);
-                }
-                if (source.metadata?.contentsubtype) {
-                  metadata.push(source.metadata.contentsubtype);
-                }
-                const metadataStr = metadata.length > 0 ? ` [${metadata.join(', ')}]` : '';
-
-                // Server-name-based citation marker: \ue202turn{N}{sourceKey}{index}
-                citationGuide += `- ${fileName}${metadataStr}: \\ue202turn${turn}${sourceKey}${index}\n`;
-
-                // Page-level citation markers when pages are available
-                if (source.pages && source.pages.length > 0) {
-                  citationGuide += `  Page-level citations:\n`;
-                  source.pages.forEach((page) => {
-                    citationGuide += `  - Page ${page}: \\ue202turn${turn}${sourceKey}${index}p${page}\n`;
-                  });
-                }
-              });
-
+              // Use centralized marker generation from citations module
+              const citationGuide = generateCitationMarkers(
+                sources,
+                turn,
+                sourceKey,
+                options?.serverName,
+              );
               currentTextBlock += citationGuide;
             }
           }
