@@ -1,0 +1,304 @@
+# docker-compose.soev-rag.yml
+# soev-rag integration stack - replaces Airweave and LibreChat RAG API
+networks:
+  internal:
+  edge:
+
+services:
+  ## CORE APPLICATION
+  # librechat_api:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.soev.ai.multi
+  #     target: api-build
+  #   container_name: librechat_api
+  #   restart: unless-stopped
+  #   labels:
+  #     - "soevai.restart=enabled"
+  #   environment:
+  #     CONFIG_PATH: /app/librechat.soev.ai.yaml
+  #     BASE_CONFIG_PATH: /app/librechat.soev.ai.yaml
+  #     HOST: 0.0.0.0
+  #     PORT: 3080
+  #     MONGO_URI: mongodb://mongodb:27017/LibreChat
+  #     MEILI_HOST: http://meilisearch:7700
+  #     RAG_API_URL: http://rag_api:8100  # Changed from 8000 to soev-rag port
+  #     SOEVAI_ROOT: /app
+  #     DEBUG_LOGGING: "true"
+  #   depends_on:
+  #     - mongodb
+  #     - rag_api
+  #   env_file:
+  #     - .env
+  #   volumes:
+  #     - ./librechat.yaml:/app/librechat.yaml:ro
+  #     - ./librechat.soev.ai.yaml:/app/librechat.soev.ai.yaml:rw
+  #     - ./admin-overrides.yaml:/app/admin-overrides.yaml:rw
+  #     - ./uploads:/app/uploads
+  #     - ./logs:/app/api/logs
+  #   ports:
+  #     - "3080:3080"
+  #   networks:
+  #     - internal
+
+  mongodb:
+    image: mongo
+    container_name: prod-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./data-node:/data/db
+    command: mongod --noauth
+    networks:
+      - internal
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.12.3
+    container_name: prod-meilisearch
+    restart: unless-stopped
+    ports:
+      - "7700:7700"
+    environment:
+      MEILI_NO_ANALYTICS: "true"
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+    volumes:
+      - ./meili_data_v1.12:/meili_data
+    networks:
+      - internal
+
+  ## SOEV-RAG STACK (replaces vectordb, rag_api, and all airweave-* services)
+  weaviate:
+    image: semitechnologies/weaviate:1.28.0
+    container_name: soev-weaviate
+    restart: unless-stopped
+    environment:
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+      DEFAULT_VECTORIZER_MODULE: 'none'
+      CLUSTER_HOSTNAME: 'weaviate'
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/v1/.well-known/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rag_api:
+    image: ghcr.io/gradient-ds/soev-rag:latest
+    command: ["python", "-m", "soev_rag.api.main"]
+    container_name: soev-rag-api
+    restart: unless-stopped
+    ports:
+      - "8100:8100"
+    environment:
+      WEAVIATE_URL: http://weaviate:8080
+      WEAVIATE_GRPC_PORT: 50051
+      RAG_API_KEY: ${RAG_API_KEY}
+      RAG_BASE_URL: ${RAG_BASE_URL}
+      RAG_EMBEDDING_MODEL: ${RAG_EMBEDDING_MODEL}
+      RAG_EMBEDDING_DIM: ${RAG_EMBEDDING_DIM:-1024}
+      JWT_SECRET: ${JWT_SECRET}
+      CHUNK_SIZE: 1500
+      CHUNK_OVERLAP: 100
+    depends_on:
+      weaviate:
+        condition: service_healthy
+    networks:
+      - internal
+
+  sharepoint-worker:
+    image: ghcr.io/gradient-ds/soev-rag:latest
+    command: ["python", "-m", "soev_rag.worker.main"]
+    container_name: soev-sharepoint-worker
+    restart: unless-stopped
+    environment:
+      WEAVIATE_URL: http://weaviate:8080
+      WEAVIATE_GRPC_PORT: 50051
+      RAG_API_KEY: ${RAG_API_KEY}
+      RAG_BASE_URL: ${RAG_BASE_URL}
+      RAG_EMBEDDING_MODEL: ${RAG_EMBEDDING_MODEL}
+      RAG_EMBEDDING_DIM: ${RAG_EMBEDDING_DIM:-1024}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID}
+      AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET}
+      SHAREPOINT_SITE_URL: ${SHAREPOINT_SITE_URL:-}
+      SHAREPOINT_SYNC_CRON: "0 * * * *"
+    volumes:
+      - sync_data:/data/sync_cursors
+    depends_on:
+      weaviate:
+        condition: service_healthy
+    networks:
+      - internal
+
+  mcp-server:
+    image: ghcr.io/gradient-ds/soev-rag:latest
+    command: ["python", "-m", "soev_rag.mcp.main"]
+    container_name: soev-mcp-server
+    restart: unless-stopped
+    ports:
+      - "8101:8101"
+    environment:
+      WEAVIATE_URL: http://weaviate:8080
+      WEAVIATE_GRPC_PORT: 50051
+      RAG_API_KEY: ${RAG_API_KEY}
+      RAG_BASE_URL: ${RAG_BASE_URL}
+      RAG_EMBEDDING_MODEL: ${RAG_EMBEDDING_MODEL}
+      RAG_EMBEDDING_DIM: ${RAG_EMBEDDING_DIM:-1024}
+      MCP_API_KEY: ${SHAREPOINT_API_KEY}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID}
+      AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET}
+      SHAREPOINT_SITE_URL: ${SHAREPOINT_SITE_URL:-}
+    depends_on:
+      weaviate:
+        condition: service_healthy
+    networks:
+      - internal
+
+  ## REVERSE PROXY
+  # nginx:
+  #   image: nginx:latest
+  #   container_name: nginx-local
+  #   ports:
+  #     - "80:80"
+  #   volumes:
+  #     - ./nginx/nginx-dev.conf:/etc/nginx/conf.d/default.conf:ro
+  #   depends_on:
+  #     # - librechat_api
+  #     - grafana
+  #     - prometheus
+  #     - alertmanager
+  #     - metrics
+  #   restart: unless-stopped
+  #   networks:
+  #     - internal
+  #     - edge
+
+  # ## MONITORING STACK
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   container_name: prometheus-local
+  #   volumes:
+  #     - ./monitoring/prometheus/prometheus-dev.yml:/etc/prometheus/prometheus.yml:ro
+  #     - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+  #     - prometheus_data:/prometheus
+  #   command:
+  #     - '--config.file=/etc/prometheus/prometheus.yml'
+  #     - '--storage.tsdb.path=/prometheus'
+  #     - '--storage.tsdb.retention.time=7d'
+  #     - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+  #     - '--web.console.templates=/usr/share/prometheus/consoles'
+  #     - '--web.enable-lifecycle'
+  #     - '--web.external-url=http://localhost/prometheus'
+  #     - '--web.route-prefix=/prometheus'
+  #   environment:
+  #     ENVIRONMENT: 'development'
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - metrics
+  #   networks:
+  #     - internal
+
+  # alertmanager:
+  #   image: prom/alertmanager:latest
+  #   container_name: alertmanager-local
+  #   volumes:
+  #     - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+  #     - alertmanager_data:/alertmanager
+  #   environment:
+  #     SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+  #   entrypoint: ["/bin/sh", "-c"]
+  #   command:
+  #     - |
+  #       if [ -n "$$SLACK_WEBHOOK_URL" ]; then
+  #         echo "$$SLACK_WEBHOOK_URL" > /tmp/slack_webhook
+  #       else
+  #         echo "https://hooks.slack.com/services/placeholder" > /tmp/slack_webhook
+  #       fi
+  #       exec /bin/alertmanager \
+  #         --config.file=/etc/alertmanager/alertmanager.yml \
+  #         --storage.path=/alertmanager \
+  #         --web.external-url=http://localhost/alertmanager \
+  #         --web.route-prefix=/alertmanager \
+  #         --cluster.listen-address= \
+  #         --log.level=debug
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - prometheus
+  #   networks:
+  #     - internal
+
+  # grafana:
+  #   image: grafana/grafana:latest
+  #   container_name: grafana-local
+  #   volumes:
+  #     - grafana_data:/var/lib/grafana
+  #     - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+  #     - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+  #     - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
+  #   environment:
+  #     GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER:-admin}
+  #     GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD:-admin}
+  #     GF_USERS_ALLOW_SIGN_UP: 'false'
+  #     GF_AUTH_ANONYMOUS_ENABLED: 'false'
+  #     GF_SERVER_ROOT_URL: 'http://localhost/grafana/'
+  #     GF_SERVER_SERVE_FROM_SUB_PATH: 'true'
+  #     GF_SECURITY_ALLOW_EMBEDDING: 'true'
+  #     GF_SECURITY_COOKIE_SAMESITE: 'lax'
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - prometheus
+  #   networks:
+  #     - internal
+
+  # node-exporter:
+  #   image: prom/node-exporter:latest
+  #   container_name: node-exporter-local
+  #   volumes:
+  #     - /proc:/host/proc:ro
+  #     - /sys:/host/sys:ro
+  #     - /:/rootfs:ro
+  #   command:
+  #     - '--path.procfs=/host/proc'
+  #     - '--path.sysfs=/host/sys'
+  #     - '--path.rootfs=/rootfs'
+  #     - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+  #   restart: unless-stopped
+  #   networks:
+  #     - internal
+
+  # metrics:
+  #   image: ghcr.io/virtuos/librechat_exporter:main
+  #   container_name: librechat-metrics
+  #   depends_on:
+  #     - mongodb
+  #   environment:
+  #     MONGODB_URI: mongodb://mongodb:27017/
+  #     MONGODB_DATABASE: LibreChat
+  #     LOGGING_LEVEL: info
+  #     METRICS_CACHE_ENABLED: "true"
+  #     METRICS_CACHE_TTL: "60"
+  #     ENABLE_BASIC_METRICS: "true"
+  #     ENABLE_TOKEN_METRICS: "true"
+  #     ENABLE_USER_METRICS: "true"
+  #     ENABLE_MODEL_METRICS: "true"
+  #     ENABLE_TIME_WINDOW_METRICS: "true"
+  #     ENABLE_RATING_METRICS: "true"
+  #     ENABLE_TOOL_METRICS: "true"
+  #     ENABLE_FILE_METRICS: "true"
+  #   restart: unless-stopped
+  #   networks:
+  #     - internal
+
+volumes:
+  weaviate_data:
+  sync_data:
+  # prometheus_data:
+  # alertmanager_data:
+  # grafana_data:

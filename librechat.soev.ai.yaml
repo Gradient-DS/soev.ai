@@ -160,7 +160,8 @@ mcpServers:
 
   NEO NL:
     type: streamable-http
-    url: http://host.docker.internal:3434/mcp
+    # url: http://host.docker.internal:3434/mcp
+    url: http://localhost:3434/mcp
     headers:
       Authorization: Bearer ${NEONL_MCP_KEY}
     timeout: 60000
@@ -171,7 +172,8 @@ mcpServers:
   # soev-rag - SharePoint/OneDrive document retrieval (replaces Airweave)
   SharePoint:
     type: streamable-http
-    url: http://mcp-server:8101/mcp
+    # url: http://mcp-server:8101/mcp
+    url: http://localhost:8101/mcp
     headers:
       Authorization: Bearer ${SHAREPOINT_API_KEY}
     timeout: 60000

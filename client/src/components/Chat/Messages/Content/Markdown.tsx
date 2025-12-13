@@ -9,7 +9,7 @@ import ReactMarkdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import remarkDirective from 'remark-directive';
 import type { Pluggable } from 'unified';
-import { Citation, CompositeCitation, HighlightedText } from '~/components/Web/Citation';
+import { CitationInline, CitationInlineMultiple, HighlightedText } from '~/components/Citations';
 import { Artifact, artifactPlugin } from '~/components/Artifacts/Artifact';
 import { ArtifactProvider, CodeBlockProvider } from '~/Providers';
 import MarkdownErrorBoundary from './MarkdownErrorBoundary';
@@ -154,9 +154,9 @@ const Markdown = memo(({ content = '', isLatestMessage }: TContentProps) => {
                 p,
                 img,
                 artifact: Artifact,
-                citation: Citation,
+                citation: CitationInline,
                 'highlighted-text': HighlightedText,
-                'composite-citation': CompositeCitation,
+                'composite-citation': CitationInlineMultiple,
               } as {
                 [nodeType: string]: React.ElementType;
               }
