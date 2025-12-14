@@ -30,6 +30,22 @@ interface:
 ### Files Modified
 
 #### 1. Schema Definition
+**File:** `packages/data-provider/src/config.ts`
+
+Added `externalLinkConfirm` to the `interfaceSchema` Zod schema:
+
+```typescript
+export const interfaceSchema = z
+  .object({
+    // ... other settings
+    externalLinkConfirm: z.boolean().optional(),
+  })
+  .default({
+    // ... other defaults
+    externalLinkConfirm: true,
+  });
+```
+
 **File:** `packages/data-schemas/src/app/interface.ts`
 
 Added `externalLinkConfirm` to the interface configuration loader:
@@ -69,8 +85,7 @@ import { useGetStartupConfig } from '~/data-provider';
 
 // Inside component:
 const { data: startupConfig } = useGetStartupConfig();
-const showExternalLinkConfirm =
-  (startupConfig?.interface as Record<string, unknown> | undefined)?.externalLinkConfirm !== false;
+const showExternalLinkConfirm = startupConfig?.interface?.externalLinkConfirm !== false;
 
 // In render:
 if (hasUrl && externalUrl) {

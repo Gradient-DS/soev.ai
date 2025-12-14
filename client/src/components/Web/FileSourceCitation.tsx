@@ -5,7 +5,7 @@ import { VisuallyHidden } from '@ariakit/react';
 import { ChevronDown, Paperclip, ExternalLink } from 'lucide-react';
 import { useToastContext } from '@librechat/client';
 import { ExternalLinkDialog } from './ExternalLinkDialog';
-import { useFileDownload } from '~/data-provider';
+import { useFileDownload, useGetStartupConfig } from '~/data-provider';
 import { useLocalize } from '~/hooks';
 import store from '~/store';
 
@@ -33,6 +33,8 @@ export function FileSourceCitation({
   const localize = useLocalize();
   const user = useRecoilValue(store.user);
   const { showToast } = useToastContext();
+  const { data: startupConfig } = useGetStartupConfig();
+  const showExternalLinkConfirm = startupConfig?.interface?.externalLinkConfirm !== false;
 
   const isLocalFile = source?.metadata?.storageType === 'local';
   const externalUrl = source?.metadata?.url;
@@ -103,16 +105,26 @@ export function FileSourceCitation({
         : undefined;
 
     if (hasExternalUrl && externalUrl) {
+      if (showExternalLinkConfirm) {
+        return (
+          <ExternalLinkDialog
+            url={externalUrl}
+            trigger={
+              <button className={buttonClass} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
+                <span className="truncate">{label}</span>
+                <ExternalLink className="h-2.5 w-2.5 flex-shrink-0" />
+              </button>
+            }
+          />
+        );
+      }
       return (
-        <ExternalLinkDialog
-          url={externalUrl}
-          trigger={
-            <button className={buttonClass} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
-              <span className="truncate">{label}</span>
-              <ExternalLink className="h-2.5 w-2.5 flex-shrink-0" />
-            </button>
-          }
-        />
+        <a href={externalUrl} target="_blank" rel="noopener noreferrer" className="contents">
+          <button className={buttonClass} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
+            <span className="truncate">{label}</span>
+            <ExternalLink className="h-2.5 w-2.5 flex-shrink-0" />
+          </button>
+        </a>
       );
     }
 
