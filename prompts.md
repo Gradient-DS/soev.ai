@@ -15,8 +15,11 @@ This document catalogs all prompts that are injected into the LLM message chain 
   - [4. Context/RAG Prompts](#4-contextrag-prompts)
   - [5. Vision Prompts](#5-vision-prompts)
   - [6. Summary Prompts](#6-summary-prompts)
-  - [7. Runtime Injected Prompts](#7-runtime-injected-prompts)
-  - [8. Shadcn Component Prompts](#8-shadcn-component-prompts-reference-only)
+  - [7. Title Generation Prompts](#7-title-generation-prompts)
+  - [8. Tool Prompts](#8-tool-prompts)
+  - [9. MCP Server Instructions](#9-mcp-server-instructions)
+  - [10. Shadcn Component Prompts](#10-shadcn-component-prompts-reference-only)
+  - [11. Memory Prompts](#11-memory-prompts)
 - [Duplicates & Overlaps](#duplicates--overlaps)
 - [Migration Notes](#migration-notes)
 
@@ -37,9 +40,15 @@ flowchart TD
     subgraph "System Message Assembly"
         AI[Agent Instructions<br/>from DB/config]
         AAI[Additional Instructions<br/>artifacts prompt]
-        FSB[File Search Bias<br/>if files + file_search]
         RAG[RAG Context<br/>if RAG_API_URL set]
         MCP[MCP Server Instructions<br/>if MCP tools present]
+    end
+
+    subgraph "Tool Descriptions"
+        WS[Web Search Tool<br/>with citation instructions]
+        FS[File Search Tool<br/>with citation instructions]
+        DALLE[DALL-E Tool<br/>image generation rules]
+        WOLF[Wolfram Tool<br/>computation guidelines]
     end
 
     subgraph "Context Management"
@@ -55,14 +64,18 @@ flowchart TD
 
     UR --> CS
     CH --> CS
-    AT --> FSB
     AT --> RAG
 
     AI --> SM[System Message]
     AAI --> SM
-    FSB --> SM
     RAG --> SM
     MCP --> SM
+
+    WS --> TD[Tool Definitions]
+    FS --> TD
+    DALLE --> TD
+    WOLF --> TD
+    TD --> SM
 
     CS --> |overflow| SUM
     SUM --> SM
@@ -147,10 +160,10 @@ sequenceDiagram
     AC->>BM: Build message chain
 
     Note over BM: 1. Get agent.instructions + additional_instructions
-    Note over BM: 2. Add file_search bias if files attached
-    Note over BM: 3. Add RAG context if embedded files
-    Note over BM: 4. Inject MCP server instructions
-    Note over BM: 5. Set as agent.instructions
+    Note over BM: 2. Add RAG context if embedded files
+    Note over BM: 3. Inject MCP server instructions
+    Note over BM: 4. Set as agent.instructions
+    Note over BM: 5. Tool descriptions include citation instructions
 
     BM->>G: Pass to LangChain graph
     G->>API: SystemMessage + HumanMessage chain
@@ -889,27 +902,312 @@ Summary:
 
 ---
 
-### 7. Runtime Injected Prompts
+### 7. Title Generation Prompts
 
-**Source**: `api/server/controllers/agents/client.js`
+**Source**: `packages/agents/src/utils/title.ts`
 
-#### 7.1 File Search Bias Instruction
+#### 7.1 defaultTitlePrompt
 
-- **Location**: `client.js:335-340`
-- **Injected When**: Files are attached AND agent has `file_search` tool
-- **Providers**: Agents endpoint
+- **Location**: `title.ts:9-13`
+- **Injected When**: Generating conversation title (structured output)
+- **Providers**: All
 
 ```
-When files are attached, ALWAYS call the file_search tool first to retrieve the most relevant passages. Call file_search MULTIPLE times with different queries to gather comprehensive information from various sections. Use the retrieved quotes to draft your answer and include citation anchors as instructed. Provide rich citations: use multiple references per paragraph when information comes from different sources.
+Analyze this conversation and provide:
+1. The detected language of the conversation
+2. A concise title in the detected language (5 words or less, no punctuation or quotation)
+
+{convo}
 ```
 
-**soev.ai Version**: **CUSTOMIZED** - This is a soev.ai addition, not present in upstream LibreChat.
-
-**LibreChat Original**: Not present
+**soev.ai Version**: Unchanged from LibreChat
 
 ---
 
-#### 7.2 MCP Server Instructions
+#### 7.2 defaultCompletionPrompt
+
+- **Location**: `title.ts:118-121`
+- **Injected When**: Generating conversation title (completion fallback)
+- **Providers**: All
+
+```
+Provide a concise, 5-word-or-less title for the conversation, using title case conventions. Only return the title itself.
+
+Conversation:
+{convo}
+```
+
+**soev.ai Version**: Unchanged from LibreChat
+
+---
+
+### 8. Tool Prompts
+
+These prompts are embedded in tool definitions and sent to the LLM as part of the tool schema/description.
+
+#### 8.1 Web Search Tool (with Citation Instructions)
+
+**Source**: `packages/agents/src/tools/search/tool.ts`
+
+- **Location**: `tool.ts:301-323`
+- **Injected When**: Web search tool is available to the agent
+- **Providers**: Agents endpoint
+
+```
+Real-time search. Results have required citation anchors.
+
+Note: Use ONCE per reply unless instructed otherwise.
+
+Anchors:
+- \ue202turnXtypeY
+- X = turn idx, type = 'search' | 'news' | 'image' | 'ref', Y = item idx
+
+Special Markers:
+- \ue203...\ue204 — highlight start/end of cited text (for Standalone or Group citations)
+- \ue200...\ue201 — group block (e.g. \ue200\ue202turn0search1\ue202turn0news2\ue201)
+
+**CITE EVERY NON-OBVIOUS FACT/QUOTE:**
+Use anchor marker(s) immediately after the statement:
+- Standalone: "Pure functions produce same output. \ue202turn0search0"
+- Standalone (multiple): "Today's News \ue202turn0search0\ue202turn0news0"
+- Highlight: "\ue203Highlight text.\ue204\ue202turn0news1"
+- Group: "Sources. \ue200\ue202turn0search0\ue202turn0news1\ue201"
+- Group Highlight: "\ue203Highlight for group.\ue204 \ue200\ue202turn0search0\ue202turn0news1\ue201"
+- Image: "See photo \ue202turn0image0."
+
+**NEVER use markdown links, [1], or footnotes. CITE ONLY with anchors provided.**
+```
+
+**soev.ai Version**: Base tool unchanged from LibreChat. Additional context added via `handleTools.js` (see 8.1.1 below).
+
+---
+
+#### 8.1.1 Web Search Tool Context (soev.ai + upstream)
+
+**Source**: `api/app/clients/tools/util/handleTools.js`
+
+- **Location**: `handleTools.js:314-341`
+- **Injected When**: Web search tool is requested
+- **Providers**: Agents endpoint
+
+This context is prepended to the tool when it's loaded:
+
+```
+# `web_search`:
+Current Date & Time: {{iso_datetime}}
+
+**CRITICAL: One search is enough. The results already contain the FULL PAGE CONTENT.**
+
+## How this tool works:
+- When you search, the system automatically visits each URL, scrapes the page, and extracts the relevant content
+- The "highlights" in your results ARE the extracted page content - you already have it
+- There is NO way to "open" or "visit" a URL separately - the search already did that
+
+## Rules:
+1. Search ONCE, then answer using the content provided
+2. Do NOT search again to "open" a source - you cannot open URLs, and you already have the content
+3. If the highlights don't contain enough info, that source simply doesn't have what you need
+
+**CITATION FORMAT - UNICODE ESCAPE SEQUENCES ONLY:**
+Use these EXACT escape sequences (copy verbatim): \ue202 (before each anchor), \ue200 (group start), \ue201 (group end), \ue203 (highlight start), \ue204 (highlight end)
+
+Anchor pattern: \ue202turn{N}{type}{index} where N=turn number, type=search|news|image|ref, index=0,1,2...
+
+**Examples (copy these exactly):**
+- Single: "Statement.\ue202turn0search0"
+- Multiple: "Statement.\ue202turn0search0\ue202turn0news1"
+- Group: "Statement. \ue200\ue202turn0search0\ue202turn0news1\ue201"
+- Highlight: "\ue203Cited text.\ue204\ue202turn0search0"
+- Image: "See photo\ue202turn0image0."
+
+**CRITICAL:** Output escape sequences EXACTLY as shown. Do NOT substitute with † or other symbols. Place anchors AFTER punctuation. Cite every non-obvious fact/quote. NEVER use markdown links, [1], footnotes, or HTML tags.
+```
+
+**soev.ai Version**: Custom "How this tool works" and "Rules" sections (soev.ai). Citation format from upstream LibreChat commit 03c9d5f (Dec 2025).
+
+**Citation Unicode Markers**:
+| Marker | Purpose |
+|--------|---------|
+| `\ue202` | Citation anchor prefix |
+| `\ue203` | Highlight start |
+| `\ue204` | Highlight end |
+| `\ue200` | Group block start |
+| `\ue201` | Group block end |
+
+---
+
+#### 8.2 File Search Tool (with Citation Instructions)
+
+**Source**: `api/app/clients/tools/util/fileSearch.js`
+
+- **Location**: `fileSearch.js:173-185`
+- **Injected When**: File search tool is available AND `fileCitations` is enabled
+- **Providers**: Agents endpoint
+
+**Base Description**:
+```
+Performs semantic search across attached "file_search" documents using natural language queries. This tool analyzes the content of uploaded files to find relevant information, quotes, and passages that best match your query. Use this to extract specific information or find relevant sections within the available documents.
+```
+
+**Citation Instructions** (appended when `fileCitations=true`):
+```
+**CITE FILE SEARCH RESULTS:**
+Use the EXACT anchor markers shown below (copy them verbatim) immediately after statements derived from file content. Reference the filename in your text:
+- File citation: "The document.pdf states that... \ue202turn0file0"
+- Page reference: "According to report.docx... \ue202turn0file1"
+- Multi-file: "Multiple sources confirm... \ue200\ue202turn0file0\ue202turn0file1\ue201"
+
+**CRITICAL:** Output these escape sequences EXACTLY as shown (e.g., \ue202turn0file0). Do NOT substitute with other characters like † or similar symbols.
+**ALWAYS mention the filename in your text before the citation marker. NEVER use markdown links or footnotes.**
+```
+
+**soev.ai Version**: Updated from upstream LibreChat commit 03c9d5f (Dec 2025) - improved citation format with explicit escape sequence examples
+
+---
+
+#### 8.3 MCP Tool Citation Markers (Dynamic)
+
+**Source**: `packages/api/src/citations/markers.ts` + `packages/api/src/mcp/parsers.ts`
+
+- **Location**: `markers.ts:23-61` (generator), `parsers.ts:233-245` (injection)
+- **Injected When**: MCP tool returns `artifact://file_search` resource with `fileCitations=true`
+- **Providers**: Agents endpoint (MCP tools)
+
+MCP tools use a **centralized citation marker generator** that dynamically creates citation instructions based on the sources returned by the tool. This is different from web search (which has static instructions) - MCP citations are generated per-response based on actual results.
+
+**generateCitationMarkers()** function produces:
+```
+**Available Citations from {serverName} (use these exact markers in your response):**
+- {fileName} [{year}, {contentsubtype}]: \ue202turn{N}{sourceKey}{index}
+```
+
+**Example output** (for SharePoint MCP server named "SharePoint"):
+```
+**Available Citations from SharePoint (use these exact markers in your response):**
+- Annual Report 2024.pdf [2024, Report]: \ue202turn0sharepoint0
+- Policy Document.docx [2023, Policy]: \ue202turn0sharepoint1
+```
+
+**Example output** (for MCP server named "Neo NL"):
+```
+**Available Citations from Neo NL (use these exact markers in your response):**
+- Kernenergiewet.pdf [2023, Wet]: \ue202turn0neo_nl0
+- Beleidsnotitie.docx [2024, Beleid]: \ue202turn0neo_nl1
+```
+
+**Key differences from static tool prompts:**
+- Dynamically generated based on actual search results
+- Server name becomes the `sourceKey` via `sanitizeSourceKey()`:
+  - `"SharePoint"` → `sharepoint`
+  - `"Neo NL"` → `neo_nl`
+  - `"My MCP Server"` → `my_mcp_server`
+- Metadata (year, content type) included when available
+
+**Citation marker format**:
+| Format | Example | Use case |
+|--------|---------|----------|
+| Document-level | `\ue202turn0sharepoint0` | Cite entire document |
+| Multi-server | `\ue202turn0neo_nl0` | Different MCP server |
+
+**soev.ai Version**: Unchanged from LibreChat
+
+---
+
+#### 8.4 DALL-E 3 Tool
+
+**Source**: `api/app/clients/tools/structured/DALLE3.js`
+
+- **Location**: `DALLE3.js:61-75`
+- **Injected When**: DALL-E tool is available
+- **Providers**: All with DALL-E enabled
+- **Override**: Can be overridden via `DALLE3_SYSTEM_PROMPT` environment variable
+
+**description** (user-facing):
+```
+Use DALLE to create images from text descriptions.
+- It requires prompts to be in English, detailed, and to specify image type and human features for diversity.
+- Create only one image, without repeating or listing descriptions outside the "prompts" field.
+- Maintains the original intent of the description, with parameters for image style, quality, and size to tailor the output.
+```
+
+**description_for_model** (system prompt):
+```
+// Whenever a description of an image is given, generate prompts (following these rules), and use dalle to create the image. If the user does not ask for a specific number of images, default to creating 2 prompts to send to dalle that are written to be as diverse as possible. All prompts sent to dalle must abide by the following policies:
+// 1. Prompts must be in English. Translate to English if needed.
+// 2. One image per function call. Create only 1 image per request unless explicitly told to generate more than 1 image.
+// 3. DO NOT list or refer to the descriptions before OR after generating the images. They should ONLY ever be written out ONCE, in the `"prompts"` field of the request. You do not need to ask for permission to generate, just do it!
+// 4. Always mention the image type (photo, oil painting, watercolor painting, illustration, cartoon, drawing, vector, render, etc.) at the beginning of the caption. Unless the captions suggests otherwise, make one of the images a photo.
+// 5. Diversify depictions of ALL images with people to always include always DESCENT and GENDER for EACH person using direct terms. Adjust only human descriptions.
+// - EXPLICITLY specify these attributes, not abstractly reference them. The attributes should be specified in a minimal way and should directly describe their physical form.
+// - Your choices should be grounded in reality. For example, all of a given OCCUPATION should not be the same gender or race. Additionally, focus on creating diverse, inclusive, and exploratory scenes via the properties you choose during rewrites.  Make choices that may be insightful or unique sometimes.
+// - Use "various" or "diverse" ONLY IF the description refers to groups of more than 3 people. Do not change the number of people requested in the original description.
+// - Don't alter memes, fictional character origins, or unseen people. Maintain the original prompt's intent and prioritize quality.
+// The prompt must intricately describe every part of the image in concrete, objective detail. THINK about what the end goal of the description is, and extrapolate that to what would make satisfying images.
+// All descriptions sent to dalle should be a paragraph of text that is extremely descriptive and detailed. Each should be more than 3 sentences long.
+// - The "vivid" style is HIGHLY preferred, but "natural" is also supported.
+```
+
+**displayMessage** (shown after generation):
+```
+DALL-E displayed an image. All generated images are already plainly visible, so don't repeat the descriptions in detail. Do not list download links as they are available in the UI already. The user may download the images by clicking on them, but do not mention anything about downloading to the user.
+```
+
+**soev.ai Version**: Unchanged from LibreChat
+
+---
+
+#### 8.5 Wolfram Alpha Tool
+
+**Source**: `api/app/clients/tools/structured/Wolfram.js`
+
+- **Location**: `Wolfram.js:15-41`
+- **Injected When**: Wolfram tool is available
+- **Providers**: All with Wolfram enabled
+
+**description** (user-facing):
+```
+WolframAlpha offers computation, math, curated knowledge, and real-time data. It handles natural language queries and performs complex calculations.
+Follow the guidelines to get the best results.
+```
+
+**description_for_model** (system prompt):
+```
+// Access dynamic computation and curated data from WolframAlpha and Wolfram Cloud.
+// General guidelines:
+// - Use only getWolframAlphaResults or getWolframCloudResults endpoints.
+// - Prefer getWolframAlphaResults unless Wolfram Language code should be evaluated.
+// - Use getWolframAlphaResults for natural-language queries in English; translate non-English queries before sending, then respond in the original language.
+// - Use getWolframCloudResults for problems solvable with Wolfram Language code.
+// - Suggest only Wolfram Language for external computation.
+// - Inform users if information is not from Wolfram endpoints.
+// - Display image URLs with Image Markdown syntax: ![caption](https://imageURL/.../MSPStoreType=image/png&s=18). You must prefix the caption brackets with "!".
+// - ALWAYS use this exponent notation: `6*10^14`, NEVER `6e14`.
+// - ALWAYS use {{"input": query}} structure for queries to Wolfram endpoints; `query` must ONLY be a single-line string.
+// - ALWAYS use proper Markdown formatting for all math, scientific, and chemical formulas, symbols, etc.:  '$$\n[expression]\n$$' for standalone cases and '\( [expression] \)' when inline.
+// - Format inline Wolfram Language code with Markdown code formatting.
+// - Never mention your knowledge cutoff date; Wolfram may return more recent data. getWolframAlphaResults guidelines:
+// - Understands natural language queries about entities in chemistry, physics, geography, history, art, astronomy, and more.
+// - Performs mathematical calculations, date and unit conversions, formula solving, etc.
+// - Convert inputs to simplified keyword queries whenever possible (e.g. convert "how many people live in France" to "France population").
+// - Use ONLY single-letter variable names, with or without integer subscript (e.g., n, n1, n_1).
+// - Use named physical constants (e.g., 'speed of light') without numerical substitution.
+// - Include a space between compound units (e.g., "Ω m" for "ohm*meter").
+// - To solve for a variable in an equation with units, consider solving a corresponding equation without units; exclude counting units (e.g., books), include genuine units (e.g., kg).
+// - If data for multiple properties is needed, make separate calls for each property.
+// - If a Wolfram Alpha result is not relevant to the query:
+// -- If Wolfram provides multiple 'Assumptions' for a query, choose the more relevant one(s) without explaining the initial result. If you are unsure, ask the user to choose.
+// -- Re-send the exact same 'input' with NO modifications, and add the 'assumption' parameter, formatted as a list, with the relevant values.
+// -- ONLY simplify or rephrase the initial query if a more relevant 'Assumption' or other input suggestions are not provided.
+// -- Do not explain each step unless user input is needed. Proceed directly to making a better API call based on the available assumptions.
+```
+
+**soev.ai Version**: Unchanged from LibreChat
+
+---
+
+### 9. MCP Server Instructions
+
+**Source**: `api/server/controllers/agents/client.js`
 
 - **Location**: `client.js:429-432`
 - **Injected When**: MCP tools are present in agent configuration
@@ -930,7 +1228,7 @@ serverInstructions: |
 
 ---
 
-### 8. Shadcn Component Prompts (Reference Only)
+### 10. Shadcn Component Prompts (Reference Only)
 
 **Source**: `api/app/clients/prompts/shadcn-docs/`
 
@@ -945,6 +1243,69 @@ These are appended to artifact prompts when `ArtifactModes.SHADCNUI` is enabled.
 
 ---
 
+### 11. Memory Prompts
+
+**Source**: `packages/api/src/agents/memory.ts`
+
+#### 11.1 memoryInstructions (Brief)
+
+- **Location**: `memory.ts:39-40`
+- **Injected When**: Memory tools are enabled for the agent
+- **Providers**: All (via LangChain)
+
+```
+The system automatically stores important user information and can update or delete memories based on user requests, enabling dynamic memory management.
+```
+
+**soev.ai Version**: Unchanged from LibreChat
+
+---
+
+#### 11.2 getDefaultInstructions (Extended Memory Tool Instructions)
+
+- **Location**: `memory.ts:42-71`
+- **Injected When**: Memory tools are created without custom instructions
+- **Providers**: All (via LangChain)
+
+```
+Use the `set_memory` tool to save important information about the user, but ONLY when the user has requested you to remember something.
+
+The `delete_memory` tool should only be used in two scenarios:
+  1. When the user explicitly asks to forget or remove specific information
+  2. When updating existing memories, use the `set_memory` tool instead of deleting and re-adding the memory.
+
+1. ONLY use memory tools when the user requests memory actions with phrases like:
+   - "Remember [that] [I]..."
+   - "Don't forget [that] [I]..."
+   - "Please remember..."
+   - "Store this..."
+   - "Forget [that] [I]..."
+   - "Delete the memory about..."
+
+2. NEVER store information just because the user mentioned it in conversation.
+
+3. NEVER use memory tools when the user asks you to use other tools or invoke tools in general.
+
+4. Memory tools are ONLY for memory requests, not for general tool usage.
+
+5. If the user doesn't ask you to remember or forget something, DO NOT use any memory tools.
+
+{validKeys ? `\nVALID KEYS: ${validKeys.join(', ')}` : ''}
+
+{tokenLimit ? `\nTOKEN LIMIT: Maximum ${tokenLimit} tokens per memory value.` : ''}
+
+When in doubt, and the user hasn't asked to remember or forget anything, END THE TURN IMMEDIATELY.
+```
+
+**soev.ai Version**: Unchanged from LibreChat
+
+**Notes**:
+- These instructions are strict to prevent over-eager memory storage
+- The `validKeys` and `tokenLimit` sections are conditionally included based on configuration
+- Used by the memory agent to manage user memory storage via `set_memory` and `delete_memory` tools
+
+---
+
 ## Duplicates & Overlaps
 
 | Prompt A | Prompt B | Overlap | Notes |
@@ -953,12 +1314,17 @@ These are appended to artifact prompts when `ArtifactModes.SHADCNUI` is enabled.
 | `supervisorPrompt` | `taskManagerPrompt` | Conceptual | Both coordinate multi-agent workflows, different styles |
 | `SUMMARY_PROMPT` | `CUT_OFF_PROMPT` | Purpose | Both handle context management, different scenarios |
 | RAG Full Context | RAG Semantic Search | Structure | Same footer, different context presentation |
+| Web Search citations | File Search citations | Format | Both use same unicode marker system (`\ue202`, etc.) |
+| File Search citations | MCP citations | Format | Same `\ue202` marker, MCP adds page-level (`p{page}`) support |
+| `defaultTitlePrompt` | `defaultCompletionPrompt` | Purpose | Both generate titles, different output formats |
 
 ### Potential Consolidation
 
 1. **Artifact Prompts**: Could use a template with provider-specific formatting injected
 2. **Agent Coordination**: Could make supervisor/taskManager configurable via single prompt
 3. **RAG Templates**: Already share footer, could extract to reusable template
+4. **Citation System**: Web search and file search share citation marker format - could be unified
+5. **Title Prompts**: Could merge into single prompt with output format parameter
 
 ---
 
@@ -1035,13 +1401,63 @@ summary:
     text: |
       The following text is cut-off...
 
-# soev.ai custom prompts
-custom:
-  file_search_bias:
-    key: fileSearchBias
+# Title generation prompts
+title:
+  structured:
+    key: defaultTitlePrompt
     text: |
-      When files are attached, ALWAYS call the file_search tool first...
-    enabled: true
+      Analyze this conversation and provide...
+
+  completion:
+    key: defaultCompletionPrompt
+    text: |
+      Provide a concise, 5-word-or-less title...
+
+# Tool prompts
+tools:
+  web_search:
+    key: webSearchDescription
+    text: |
+      Real-time search. Results have required citation anchors...
+    citation_markers:
+      anchor: "\ue202"
+      highlight_start: "\ue203"
+      highlight_end: "\ue204"
+      group_start: "\ue200"
+      group_end: "\ue201"
+
+  file_search:
+    key: fileSearchDescription
+    text: |
+      Performs semantic search across attached documents...
+    citation_text: |
+      **CITE FILE SEARCH RESULTS:**...
+
+  dalle:
+    key: dalleDescription
+    description_for_model: |
+      // Whenever a description of an image is given...
+    env_override: DALLE3_SYSTEM_PROMPT
+
+  wolfram:
+    key: wolframDescription
+    description_for_model: |
+      // Access dynamic computation and curated data...
+
+# Memory prompts
+memory:
+  brief:
+    key: memoryInstructions
+    text: |
+      The system automatically stores important user information...
+
+  extended:
+    key: getDefaultInstructions
+    text: |
+      Use the `set_memory` tool to save important information...
+    dynamic_fields:
+      - validKeys
+      - tokenLimit
 ```
 
 ### Loading Strategy
@@ -1080,5 +1496,14 @@ artifacts:
 | RAG Context | `api/app/clients/prompts/createContextHandlers.js` |
 | Agent Task Manager | `packages/agents/src/prompts/taskmanager.ts` |
 | Agent Supervisor | `packages/agents/src/prompts/collab.ts` |
-| Runtime Injection | `api/server/controllers/agents/client.js` |
+| Title Generation | `packages/agents/src/utils/title.ts` |
+| Web Search Tool | `packages/agents/src/tools/search/tool.ts` |
+| Web Search Context | `api/app/clients/tools/util/handleTools.js` |
+| File Search Tool | `api/app/clients/tools/util/fileSearch.js` |
+| MCP Citation Markers | `packages/api/src/citations/markers.ts` |
+| MCP Tool Parser | `packages/api/src/mcp/parsers.ts` |
+| DALL-E Tool | `api/app/clients/tools/structured/DALLE3.js` |
+| Wolfram Tool | `api/app/clients/tools/structured/Wolfram.js` |
+| MCP Instructions | `api/server/controllers/agents/client.js` |
+| Memory Prompts | `packages/api/src/agents/memory.ts` |
 | Shadcn Docs | `api/app/clients/prompts/shadcn-docs/` |
