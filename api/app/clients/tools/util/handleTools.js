@@ -15,6 +15,29 @@ const {
   PermissionTypes,
   replaceSpecialVars,
 } = require('librechat-data-provider');
+const { getPrompt } = require('~/server/services/Config');
+
+// Hardcoded fallback for web search tool context
+const FALLBACK_WEB_SEARCH_CONTEXT = `# \`web_search\`:
+Current Date & Time: {{iso_datetime}}
+
+**CRITICAL: One search is enough. The results already contain the FULL PAGE CONTENT.**
+
+## How this tool works:
+- When you search, the system automatically visits each URL, scrapes the page, and extracts the relevant content
+- The "highlights" in your results ARE the extracted page content - you already have it
+- There is NO way to "open" or "visit" a URL separately - the search already did that
+
+## Rules:
+1. Search ONCE, then answer using the content provided
+2. Do NOT search again to "open" a source - you cannot open URLs, and you already have the content
+3. If the highlights don't contain enough info, that source simply doesn't have what you need
+4. Use bracket citations after statements: Statement here.【turn0search0】
+
+## After searching:
+- Read the highlights from each source
+- Synthesize a complete answer
+- Cite sources inline: claim or fact here.【turn0search0】`;
 const {
   availableTools,
   manifestToolMap,
@@ -311,27 +334,12 @@ const loadTools = async ({
       });
       const { onSearchResults, onGetHighlights } = options?.[Tools.web_search] ?? {};
       requestedTools[tool] = async () => {
-        toolContextMap[tool] = `# \`${tool}\`:
-Current Date & Time: ${replaceSpecialVars({ text: '{{iso_datetime}}' })}
-
-**CRITICAL: One search is enough. The results already contain the FULL PAGE CONTENT.**
-
-## How this tool works:
-- When you search, the system automatically visits each URL, scrapes the page, and extracts the relevant content
-- The "highlights" in your results ARE the extracted page content - you already have it
-- There is NO way to "open" or "visit" a URL separately - the search already did that
-
-## Rules:
-1. Search ONCE, then answer using the content provided
-2. Do NOT search again to "open" a source - you cannot open URLs, and you already have the content
-3. If the highlights don't contain enough info, that source simply doesn't have what you need
-4. Use bracket citations after statements: Statement here.【turn0search0】
-
-## After searching:
-- Read the highlights from each source
-- Synthesize a complete answer
-- Cite sources inline: claim or fact here.【turn0search0】
-`.trim();
+        // Load configurable prompt and apply variable substitution
+        const webSearchContext = await getPrompt(
+          ['tools', 'webSearch', 'toolContext'],
+          FALLBACK_WEB_SEARCH_CONTEXT,
+        );
+        toolContextMap[tool] = replaceSpecialVars({ text: webSearchContext }).trim();
         return createCustomSearchTool({
           ...result.authResult,
           onSearchResults,

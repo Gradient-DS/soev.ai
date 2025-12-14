@@ -18,6 +18,7 @@ import type { ObjectId, MemoryMethods } from '@librechat/data-schemas';
 import type { BaseMessage, ToolMessage } from '@langchain/core/messages';
 import type { Response as ServerResponse } from 'express';
 import { Tokenizer } from '~/utils';
+import { getPrompt } from '../prompts/config';
 
 type RequiredMemoryMethods = Pick<
   MemoryMethods,
@@ -39,6 +40,46 @@ export interface MemoryConfig {
 export const memoryInstructions =
   'The system automatically stores important user information and can update or delete memories based on user requests, enabling dynamic memory management.';
 
+/**
+ * Get the memory instructions from config with fallback to default.
+ */
+export async function getMemoryInstructions(): Promise<string> {
+  return getPrompt(['memory', 'instructions'], memoryInstructions);
+}
+
+// Fallback template for default instructions
+const FALLBACK_DEFAULT_INSTRUCTIONS = `Use the \`set_memory\` tool to save important information about the user, but ONLY when the user has requested you to remember something.
+
+The \`delete_memory\` tool should only be used in two scenarios:
+  1. When the user explicitly asks to forget or remove specific information
+  2. When updating existing memories, use the \`set_memory\` tool instead of deleting and re-adding the memory.
+
+1. ONLY use memory tools when the user requests memory actions with phrases like:
+   - "Remember [that] [I]..."
+   - "Don't forget [that] [I]..."
+   - "Please remember..."
+   - "Store this..."
+   - "Forget [that] [I]..."
+   - "Delete the memory about..."
+
+2. NEVER store information just because the user mentioned it in conversation.
+
+3. NEVER use memory tools when the user asks you to use other tools or invoke tools in general.
+
+4. Memory tools are ONLY for memory requests, not for general tool usage.
+
+5. If the user doesn't ask you to remember or forget something, DO NOT use any memory tools.
+{validKeysSection}
+{tokenLimitSection}
+
+When in doubt, and the user hasn't asked to remember or forget anything, END THE TURN IMMEDIATELY.`;
+
+const FALLBACK_VALID_KEYS_TEMPLATE = 'VALID KEYS: {validKeys}';
+const FALLBACK_TOKEN_LIMIT_TEMPLATE = 'TOKEN LIMIT: Maximum {tokenLimit} tokens per memory value.';
+
+/**
+ * Sync version for backwards compatibility.
+ */
 const getDefaultInstructions = (
   validKeys?: string[],
   tokenLimit?: number,
@@ -69,6 +110,39 @@ ${validKeys && validKeys.length > 0 ? `\nVALID KEYS: ${validKeys.join(', ')}` : 
 ${tokenLimit ? `\nTOKEN LIMIT: Maximum ${tokenLimit} tokens per memory value.` : ''}
 
 When in doubt, and the user hasn't asked to remember or forget anything, END THE TURN IMMEDIATELY.`;
+
+/**
+ * Get default memory instructions from config with fallback.
+ * Loads templates from prompts config and applies validKeys/tokenLimit.
+ */
+export async function getDefaultInstructionsAsync(
+  validKeys?: string[],
+  tokenLimit?: number,
+): Promise<string> {
+  const template = await getPrompt(['memory', 'defaultInstructions'], FALLBACK_DEFAULT_INSTRUCTIONS);
+  const validKeysTemplate = await getPrompt(['memory', 'validKeysTemplate'], FALLBACK_VALID_KEYS_TEMPLATE);
+  const tokenLimitTemplate = await getPrompt(['memory', 'tokenLimitTemplate'], FALLBACK_TOKEN_LIMIT_TEMPLATE);
+
+  let instructions = template;
+
+  // Apply valid keys section
+  if (validKeys && validKeys.length > 0) {
+    const validKeysSection = '\n' + validKeysTemplate.replace('{validKeys}', validKeys.join(', '));
+    instructions = instructions.replace('{validKeysSection}', validKeysSection);
+  } else {
+    instructions = instructions.replace('{validKeysSection}', '');
+  }
+
+  // Apply token limit section
+  if (tokenLimit) {
+    const tokenSection = '\n' + tokenLimitTemplate.replace('{tokenLimit}', String(tokenLimit));
+    instructions = instructions.replace('{tokenLimitSection}', tokenSection);
+  } else {
+    instructions = instructions.replace('{tokenLimitSection}', '');
+  }
+
+  return instructions;
+}
 
 /**
  * Creates a memory tool instance with user context
@@ -425,7 +499,7 @@ export async function createMemoryProcessor({
   config?: MemoryConfig;
 }): Promise<[string, (messages: BaseMessage[]) => Promise<(TAttachment | null)[] | undefined>]> {
   const { validKeys, instructions, llmConfig, tokenLimit } = config;
-  const finalInstructions = instructions || getDefaultInstructions(validKeys, tokenLimit);
+  const finalInstructions = instructions || await getDefaultInstructionsAsync(validKeys, tokenLimit);
 
   const { withKeys, withoutKeys, totalTokens } = await memoryMethods.getFormattedMemories({
     userId,

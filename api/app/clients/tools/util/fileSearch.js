@@ -6,6 +6,22 @@ const { generateShortLivedToken } = require('@librechat/api');
 const { Tools, EToolResources } = require('librechat-data-provider');
 const { filterFilesByAgentAccess } = require('~/server/services/Files/permissions');
 const { getFiles } = require('~/models/File');
+const { getPrompt } = require('~/server/services/Config');
+
+// Hardcoded fallback values
+const FALLBACKS = {
+  noFilesContext: `- Note: Semantic search is available through the ${Tools.file_search} tool but no files are currently loaded. Request the user to upload documents to search through.`,
+  filesAvailableContext: `- Note: Use the ${Tools.file_search} tool to find relevant information within:`,
+  description: `Performs semantic search across attached "${Tools.file_search}" documents using natural language queries. This tool analyzes the content of uploaded files to find relevant information, quotes, and passages that best match your query. Use this to extract specific information or find relevant sections within the available documents.`,
+  citationInstructions: `
+
+**CITE FILE SEARCH RESULTS:**
+Append bracket citations after text derived from file content:
+- File citation: The document states that X is Y.【turn0file_search0】
+- Multiple files: Multiple sources confirm this.【turn0file_search0,turn0file_search1】
+
+**ALWAYS reference the filename in your text. NEVER use markdown links or footnotes.**`,
+};
 
 /**
  *
@@ -42,7 +58,17 @@ const primeFiles = async (options) => {
 
   dbFiles = dbFiles.concat(resourceFiles);
 
-  let toolContext = `- Note: Semantic search is available through the ${Tools.file_search} tool but no files are currently loaded. Request the user to upload documents to search through.`;
+  // Load configurable prompts
+  const noFilesContext = await getPrompt(
+    ['tools', 'fileSearch', 'noFilesContext'],
+    FALLBACKS.noFilesContext,
+  );
+  const filesAvailableContext = await getPrompt(
+    ['tools', 'fileSearch', 'filesAvailableContext'],
+    FALLBACKS.filesAvailableContext,
+  );
+
+  let toolContext = noFilesContext;
 
   const files = [];
   for (let i = 0; i < dbFiles.length; i++) {
@@ -51,7 +77,7 @@ const primeFiles = async (options) => {
       continue;
     }
     if (i === 0) {
-      toolContext = `- Note: Use the ${Tools.file_search} tool to find relevant information within:`;
+      toolContext = filesAvailableContext;
     }
     toolContext += `\n\t- ${file.filename}${
       agentResourceIds.has(file.file_id) ? '' : ' (just attached by user)'
@@ -75,6 +101,16 @@ const primeFiles = async (options) => {
  * @returns
  */
 const createFileSearchTool = async ({ userId, files, entity_id, fileCitations = false }) => {
+  // Load configurable prompts
+  const description = await getPrompt(
+    ['tools', 'fileSearch', 'description'],
+    FALLBACKS.description,
+  );
+  const citationInstructions = await getPrompt(
+    ['tools', 'fileSearch', 'citationInstructions'],
+    FALLBACKS.citationInstructions,
+  );
+
   return tool(
     async ({ query }, config) => {
       // Extract turn from tool call config for unique citation markers
@@ -165,23 +201,15 @@ const createFileSearchTool = async ({ userId, files, entity_id, fileCitations = 
       }));
 
       // Include sourceKey and turn for frontend to correctly map citations to sources
-      return [formattedString, { [Tools.file_search]: { sources, fileCitations, sourceKey, turn } }];
+      return [
+        formattedString,
+        { [Tools.file_search]: { sources, fileCitations, sourceKey, turn } },
+      ];
     },
     {
       name: Tools.file_search,
       responseFormat: 'content_and_artifact',
-      description: `Performs semantic search across attached "${Tools.file_search}" documents using natural language queries. This tool analyzes the content of uploaded files to find relevant information, quotes, and passages that best match your query. Use this to extract specific information or find relevant sections within the available documents.${
-        fileCitations
-          ? `
-
-**CITE FILE SEARCH RESULTS:**
-Append bracket citations after text derived from file content:
-- File citation: The document states that X is Y.【turn0file_search0】
-- Multiple files: Multiple sources confirm this.【turn0file_search0,turn0file_search1】
-
-**ALWAYS reference the filename in your text. NEVER use markdown links or footnotes.**`
-          : ''
-      }`,
+      description: `${description}${fileCitations ? citationInstructions : ''}`,
       schema: z.object({
         query: z
           .string()

@@ -9,11 +9,13 @@ import { useState } from 'react';
 import { OGDialog, OGDialogContent, OGDialogTitle, OGDialogClose } from '@librechat/client';
 import { ExternalLink, AlertTriangle } from 'lucide-react';
 import { useLocalize } from '~/hooks';
+import { useHovercardStore } from './CitationHoverCard';
 import type { ExternalLinkConfirmProps } from './types';
 
 export function ExternalLinkConfirm({ url, trigger, children }: ExternalLinkConfirmProps) {
   const localize = useLocalize();
   const [isOpen, setIsOpen] = useState(false);
+  const hovercardStore = useHovercardStore();
 
   const handleContinue = () => {
     window.open(url, '_blank', 'noopener,noreferrer');
@@ -23,13 +25,22 @@ export function ExternalLinkConfirm({ url, trigger, children }: ExternalLinkConf
   const handleTriggerClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    // Open dialog first, then close hovercard on next tick
+    // This ensures the dialog portal is created before the hovercard unmounts
     setIsOpen(true);
+    requestAnimationFrame(() => {
+      hovercardStore?.hide();
+    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
+      // Open dialog first, then close hovercard on next tick
       setIsOpen(true);
+      requestAnimationFrame(() => {
+        hovercardStore?.hide();
+      });
     }
   };
 

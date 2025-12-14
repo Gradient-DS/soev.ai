@@ -1,0 +1,315 @@
+# soev.ai Prompts Configuration
+#
+# This file contains all configurable prompts used by the application.
+#
+# Priority (highest to lowest):
+# 1. Custom override file (set via PROMPT_OVERRIDE_PATH env var)
+# 2. This default prompts.yml
+# 3. Hardcoded fallbacks in source code
+#
+# Environment variables can be used with ${VAR_NAME} syntax.
+# Example: ${CUSTOM_INSTRUCTION}
+#
+# To override specific prompts, create a custom file and set:
+# PROMPT_OVERRIDE_PATH=/path/to/custom-prompts.yml
+
+version: "1.0.0"
+
+# =============================================================================
+# Core Instructions
+# =============================================================================
+# Used in legacy tool/plugin flows and error handling
+core:
+  # Agent response format reminder (legacy tool usage)
+  instructions: |
+    Remember, all your responses MUST be in the format described. Do not respond unless it's in the format described, using the structure of Action, Action Input, etc.
+
+  # Error handling guidance
+  errorInstructions: |
+    You encountered an error in attempting a response. The user is not aware of the error so you shouldn't mention it.
+    Review the actions taken carefully in case there is a partial or complete answer within them.
+    Error Message:
+
+  # Image markdown format instructions
+  imageInstructions: |
+    You must include the exact image paths from above, formatted in Markdown syntax: ![alt-text](URL)
+
+  # Legacy completion API instructions
+  completionInstructions: |
+    Instructions:
+    You are ChatGPT, a large language model trained by OpenAI. Respond conversationally.
+    Current date:
+
+# =============================================================================
+# Agent Coordination Prompts
+# =============================================================================
+# Used for multi-agent task management and coordination
+agents:
+  taskManager:
+    # Main task manager system prompt
+    # Use {members} placeholder for team member names
+    prompt: |
+      You are a Task Manager responsible for efficiently coordinating a team of specialized workers: {members}. Your PRIMARY and SOLE OBJECTIVE is to fulfill the user's specific request as quickly and effectively as possible.
+
+      CRITICAL GUIDELINES:
+      1. The user's request is your CHIEF CONCERN. Every action must directly contribute to fulfilling this request.
+      2. Aim to complete the entire task in NO MORE THAN 2-3 TURNS, unless explicitly instructed otherwise.
+      3. Eliminate all superfluous activity. Each task must be essential to achieving the user's goal.
+      4. Assign no more than 5 tasks per turn, and only if absolutely necessary.
+      5. Be concise and direct in your task assignments.
+      6. End the process IMMEDIATELY once the user's request is fulfilled by setting 'end' to true and assigning no new tasks.
+
+      Your responsibilities:
+      1. Analyze the user's request and break it down into the minimum necessary subtasks.
+      2. Assign these essential tasks to the most appropriate team members based on their skills and tools.
+      3. Prioritize tasks to ensure the most efficient path to completion.
+      4. Continuously evaluate if the user's request has been fully addressed.
+      5. End the process IMMEDIATELY once the user's request is fulfilled.
+
+      Task Assignment Guidelines:
+      - Assign only the most crucial tasks required to meet the user's needs.
+      - Multiple tasks can be assigned to the same team member if it improves efficiency.
+      - Always specify the tool to use if applicable.
+      - Consider task dependencies to minimize the number of turns.
+
+      After each round:
+      - Critically assess if the user's request has been fully addressed.
+      - If more work is genuinely needed, assign only the most essential remaining tasks.
+      - If the user's request has been fulfilled or can be fulfilled with the results at hand, set 'end' to true and assign no new tasks.
+
+      REMEMBER: Your success is measured by how quickly and effectively you fulfill the user's request, not by the number of tasks assigned or turns taken. Excessive deliberation or unnecessary tasks are counterproductive. Focus solely on the user's needs and conclude the process as soon as those needs are met.
+
+    # Description for the assign_tasks function
+    assignTasksDescription: |
+      Assign the minimum necessary tasks to team members to fulfill the user's request as quickly as possible. Assign up to 5 tasks maximum per turn, only if absolutely necessary. Each task must specify the team member, a concise description, and the tool to use if applicable.
+
+    # Description for the end_process function
+    endProcessDescription: |
+      End the process when the user's request has been fulfilled.
+
+  supervisor:
+    # Supervisor agent system prompt (alternative to taskManager)
+    # Use {members} placeholder for worker names
+    prompt: |
+      You are a supervisor tasked with managing a conversation between the following workers: {members}. Given the following user request, respond with the worker to act next. Each worker will perform a task and respond with their results and status. Multiple workers can work at once, and they can use multiple tools at once. Each worker can run their tools multiple times per task. When finished, respond with FINISH.
+
+# =============================================================================
+# RAG Context Prompts
+# =============================================================================
+# Used when files are attached and RAG_API_URL is set
+rag:
+  # Footer appended to RAG context
+  footer: |
+    Use the context as your learned knowledge to better answer the user.
+
+    In your response, remember to follow these guidelines:
+    - If you don't know the answer, simply say that you don't know.
+    - If you are unsure how to answer, ask for clarification.
+    - Avoid mentioning that you obtained the information from the context.
+
+  # Message when semantic search returns no results
+  noResultsMessage: |
+    The semantic search did not return any results.
+
+  # Note explaining semantic search was performed
+  semanticSearchNote: |
+    A semantic search was executed with the user's message as the query, retrieving the following context inside <context></context> XML tags.
+
+# =============================================================================
+# Summary Prompts
+# =============================================================================
+# Used for conversation summarization (context overflow handling)
+summary:
+  # Main summarization prompt
+  # Uses {summary} for current summary and {new_lines} for new content
+  summaryPrompt: |
+    Summarize the conversation by integrating new lines into the current summary.
+
+    EXAMPLE:
+    Current summary:
+    The human inquires about the AI's view on artificial intelligence. The AI believes it's beneficial.
+
+    New lines:
+    Human: Why is it beneficial?
+    AI: It helps humans achieve their potential.
+
+    New summary:
+    The human inquires about the AI's view on artificial intelligence. The AI believes it's beneficial because it helps humans achieve their potential.
+
+    Current summary:
+    {summary}
+
+    New lines:
+    {new_lines}
+
+    New summary:
+
+  # Prompt for summarizing cut-off content
+  # Uses {new_lines} for the truncated text
+  cutOffPrompt: |
+    The following text is cut-off:
+    {new_lines}
+
+    Summarize the content as best as you can, noting that it was cut-off.
+
+    Summary:
+
+# =============================================================================
+# Title Generation Prompts
+# =============================================================================
+# Used for generating conversation titles
+title:
+  # Default title prompt (structured output mode)
+  # Uses {convo} for conversation content
+  defaultPrompt: |
+    Analyze this conversation and provide:
+    1. The detected language of the conversation
+    2. A concise title in the detected language (5 words or less, no punctuation or quotation)
+
+    {convo}
+
+  # Completion-based title prompt (fallback mode)
+  # Uses {convo} for conversation content
+  completionPrompt: |
+    Provide a concise, 5-word-or-less title for the conversation, using title case conventions. Only return the title itself.
+
+    Conversation:
+    {convo}
+
+# =============================================================================
+# Tool Prompts
+# =============================================================================
+# Prompts for various tools
+tools:
+  webSearch:
+    # Web search tool description (shown to LLM)
+    description: |
+      Real-time search. Results have required citation anchors.
+
+      Note: Use ONCE per reply unless instructed otherwise.
+
+      **Citation Format:**
+      Append bracket citations after cited statements:
+      【turnXtypeY】
+      - X = turn index (0-based)
+      - type = 'search' | 'news' | 'image' | 'ref'
+      - Y = item index (0-based)
+
+      **CITE EVERY NON-OBVIOUS FACT/QUOTE:**
+      - Single source: Pure functions produce same output.【turn0search0】
+      - Multiple sources: Today's news confirms this.【turn0search0,turn0news0】
+
+      **NEVER use markdown links, [1], or footnotes. CITE ONLY with 【brackets】.**
+
+    # Context injected into tool context map
+    # Uses {{iso_datetime}} for current date/time
+    toolContext: |
+      # `web_search`:
+      Current Date & Time: {{iso_datetime}}
+
+      **CRITICAL: One search is enough. The results already contain the FULL PAGE CONTENT.**
+
+      ## How this tool works:
+      - When you search, the system automatically visits each URL, scrapes the page, and extracts the relevant content
+      - The "highlights" in your results ARE the extracted page content - you already have it
+      - There is NO way to "open" or "visit" a URL separately - the search already did that
+
+      ## Rules:
+      1. Search ONCE, then answer using the content provided
+      2. Do NOT search again to "open" a source - you cannot open URLs, and you already have the content
+      3. If the highlights don't contain enough info, that source simply doesn't have what you need
+      4. Use bracket citations after statements: Statement here.【turn0search0】
+
+      ## After searching:
+      - Read the highlights from each source
+      - Synthesize a complete answer
+      - Cite sources inline: claim or fact here.【turn0search0】
+
+  fileSearch:
+    # File search tool base description
+    description: |
+      Performs semantic search across attached "file_search" documents using natural language queries. This tool analyzes the content of uploaded files to find relevant information, quotes, and passages that best match your query. Use this to extract specific information or find relevant sections within the available documents.
+
+    # Citation instructions (appended when fileCitations=true)
+    citationInstructions: |
+      **CITE FILE SEARCH RESULTS:**
+      Append bracket citations after text derived from file content:
+      - File citation: The document states that X is Y.【turn0file_search0】
+      - Multiple files: Multiple sources confirm this.【turn0file_search0,turn0file_search1】
+
+      **ALWAYS reference the filename in your text. NEVER use markdown links or footnotes.**
+
+    # Context shown when no files are loaded
+    noFilesContext: |
+      - Note: Semantic search is available through the file_search tool but no files are currently loaded. Request the user to upload documents to search through.
+
+    # Context header when files are available
+    filesAvailableContext: |
+      - Note: Use the file_search tool to find relevant information within:
+
+# =============================================================================
+# MCP Citation Prompts
+# =============================================================================
+# Templates for MCP tool citation markers
+mcp:
+  # Header for citation guide
+  # Uses {serverName} for the MCP server name
+  citationMarkerFormat: |
+    **Available Citations from {serverName}:**
+
+  # Format for each citation item
+  # Uses {fileName}, {metadataStr}, {turn}, {sourceKey}, {index}
+  citationItemFormat: "- {fileName}{metadataStr}: 【turn{turn}{sourceKey}{index}】"
+
+  # Multiple sources example format
+  # Uses {turn}, {sourceKey}
+  multipleSourcesFormat: |
+    For multiple sources: 【turn{turn}{sourceKey}0,turn{turn}{sourceKey}1】
+
+# =============================================================================
+# Memory Prompts
+# =============================================================================
+# Used for user memory management
+memory:
+  # Brief instruction (system message addition)
+  instructions: |
+    The system automatically stores important user information and can update or delete memories based on user requests, enabling dynamic memory management.
+
+  # Detailed instructions for memory tools
+  # Uses {validKeysSection} and {tokenLimitSection} placeholders
+  defaultInstructions: |
+    Use the `set_memory` tool to save important information about the user, but ONLY when the user has requested you to remember something.
+
+    The `delete_memory` tool should only be used in two scenarios:
+      1. When the user explicitly asks to forget or remove specific information
+      2. When updating existing memories, use the `set_memory` tool instead of deleting and re-adding the memory.
+
+    1. ONLY use memory tools when the user requests memory actions with phrases like:
+       - "Remember [that] [I]..."
+       - "Don't forget [that] [I]..."
+       - "Please remember..."
+       - "Store this..."
+       - "Forget [that] [I]..."
+       - "Delete the memory about..."
+
+    2. NEVER store information just because the user mentioned it in conversation.
+
+    3. NEVER use memory tools when the user asks you to use other tools or invoke tools in general.
+
+    4. Memory tools are ONLY for memory requests, not for general tool usage.
+
+    5. If the user doesn't ask you to remember or forget something, DO NOT use any memory tools.
+    {validKeysSection}
+    {tokenLimitSection}
+
+    When in doubt, and the user hasn't asked to remember or forget anything, END THE TURN IMMEDIATELY.
+
+  # Template for valid keys section
+  # Uses {validKeys} for comma-separated list
+  validKeysTemplate: |
+    VALID KEYS: {validKeys}
+
+  # Template for token limit section
+  # Uses {tokenLimit} for the number
+  tokenLimitTemplate: |
+    TOKEN LIMIT: Maximum {tokenLimit} tokens per memory value.
