@@ -149,7 +149,7 @@ const createFileSearchTool = async ({ userId, files, entity_id, fileCitations = 
         .map(
           (result, index) =>
             `File: ${result.filename}${
-              fileCitations ? `\nAnchor: \\ue202turn${turn}${sourceKey}${index} (${result.filename})` : ''
+              fileCitations ? `\nCite as: 【turn${turn}${sourceKey}${index}】` : ''
             }\nRelevance: ${(1.0 - result.distance).toFixed(4)}\nContent: ${result.content}\n`,
         )
         .join('\n---\n');
@@ -175,12 +175,11 @@ const createFileSearchTool = async ({ userId, files, entity_id, fileCitations = 
           ? `
 
 **CITE FILE SEARCH RESULTS:**
-Use the anchor markers provided in the tool output immediately after statements derived from file content. Reference the filename in your text:
-- File citation: "The document.pdf states that... [anchor from output]"
-- Page reference: "According to report.docx... [anchor from output]"
-- Multi-file: "Multiple sources confirm... \\ue200[anchor1][anchor2]\\ue201"
+Append bracket citations after text derived from file content:
+- File citation: The document states that X is Y.【turn0file_search0】
+- Multiple files: Multiple sources confirm this.【turn0file_search0,turn0file_search1】
 
-**ALWAYS mention the filename in your text before the citation marker. NEVER use markdown links or footnotes.**`
+**ALWAYS reference the filename in your text. NEVER use markdown links or footnotes.**`
           : ''
       }`,
       schema: z.object({

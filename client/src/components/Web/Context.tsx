@@ -46,6 +46,13 @@ export function useCitation({
   page?: number;
 }): (t.Citation & t.Reference & { page?: number }) | undefined {
   const { searchResults } = useSearchContext();
+
+  console.log('[useCitation] Called with:', { turn, index, refType: _refType });
+  console.log('[useCitation] searchResults available:', {
+    keys: Object.keys(searchResults || {}),
+    hasSearchResults: !!searchResults,
+  });
+
   if (!_refType) {
     return undefined;
   }
@@ -58,6 +65,11 @@ export function useCitation({
   if (!LEGACY_REF_TYPES.has(refTypeLower) && searchResults) {
     // Try composite key first: searchResults['neo_nl_0'].references[index]
     const compositeKey = `${refTypeLower}_${turn}`;
+    console.log('[useCitation] Composite key lookup:', {
+      compositeKey,
+      found: !!searchResults?.[compositeKey]?.references?.[index],
+      referencesCount: searchResults?.[compositeKey]?.references?.length,
+    });
     if (searchResults[compositeKey]?.references?.[index]) {
       source = searchResults[compositeKey].references[index] as CitationSource;
     } else if (searchResults[refTypeLower]?.references?.[index]) {

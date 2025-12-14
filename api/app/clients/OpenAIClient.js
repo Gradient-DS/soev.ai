@@ -1130,7 +1130,7 @@ class OpenAIClient extends BaseClient {
       const { message, finish_reason } = choices[0] ?? {};
       this.metadata = { finish_reason };
 
-      logger.debug('[OpenAIClient] chatCompletion response', chatCompletion);
+      logger.info('[OpenAIClient] chatCompletion response', JSON.stringify(chatCompletion));
 
       if (!message) {
         logger.warn('[OpenAIClient] Message is undefined in chatCompletion response');

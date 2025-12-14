@@ -77,7 +77,7 @@ const BaseOptionsSchema = z.object({
     .optional(),
   /**
    * Enable citation markers for this MCP server's search results.
-   * When true, search results will include citation anchors (\ue202turn0file{N})
+   * When true, search results will include bracket citations (【turn0{sourceKey}{N}】)
    * that render as clickable pills in the chat UI.
    */
   fileCitations: z.boolean().optional(),

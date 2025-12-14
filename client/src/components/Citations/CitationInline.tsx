@@ -38,12 +38,25 @@ export function CitationInline(props: CitationInlineProps) {
   const parsedCitation = parseCitationFromProps(props);
   const citationId = props['data-citation-id'] || props.node?.properties?.citationId;
 
+  console.log('[CitationInline] Component rendered with props:', {
+    'data-citation': props['data-citation'],
+    'data-citation-id': props['data-citation-id'],
+    nodeProperties: props.node?.properties,
+    parsedCitation,
+  });
+
   // Use existing useCitation hook for resolution
   const refData = useCitation({
     turn: parsedCitation?.turn || 0,
     refType: parsedCitation?.refType,
     index: parsedCitation?.index || 0,
     page: parsedCitation?.page,
+  });
+
+  console.log('[CitationInline] useCitation result:', {
+    input: { turn: parsedCitation?.turn, refType: parsedCitation?.refType, index: parsedCitation?.index },
+    refData,
+    willRenderNull: !refData,
   });
 
   if (!refData) {

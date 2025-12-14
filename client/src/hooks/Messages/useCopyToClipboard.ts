@@ -3,11 +3,9 @@ import copy from 'copy-to-clipboard';
 import { ContentTypes, SearchResultData } from 'librechat-data-provider';
 import type { TMessage } from 'librechat-data-provider';
 import {
-  SPAN_REGEX,
   CLEANUP_REGEX,
-  COMPOSITE_REGEX,
-  STANDALONE_PATTERN,
-  INVALID_CITATION_REGEX,
+  CITE_TAG_REGEX,
+  parseIndices,
 } from '~/utils/citations';
 
 type Source = {
@@ -66,9 +64,7 @@ export default function useCopyToClipboard({
       // Early return if no search data
       if (!searchResults || Object.keys(searchResults).length === 0) {
         // Clean up any citation markers before returning
-        const cleanedText = messageText
-          .replace(INVALID_CITATION_REGEX, '')
-          .replace(CLEANUP_REGEX, '');
+        const cleanedText = messageText.replace(CLEANUP_REGEX, '');
 
         copy(cleanedText, { format: 'text/plain' });
         copyTimeoutRef.current = setTimeout(() => {
@@ -107,7 +103,9 @@ export default function useCopyToClipboard({
 }
 
 /**
- * Process citations in the text and format them properly
+ * Process bracket citations in the text and format them as numbered references for clipboard.
+ * Handles both single-source citations (【turn0search0】) and
+ * multi-source citations (【turn0search0,turn0news1】).
  */
 function processCitations(text: string, searchResults: { [key: string]: SearchResultData }) {
   // Maps citation keys to their info including reference numbers
@@ -127,213 +125,105 @@ function processCitations(text: string, searchResults: { [key: string]: SearchRe
   let nextReferenceNumber = 1;
   let formattedText = text;
 
-  // Step 1: Process highlighted text first (simplify by just making it bold in markdown)
-  formattedText = formattedText.replace(SPAN_REGEX, (match) => {
-    const text = match.replace(/\\ue203|\\ue204/g, '');
-    return `**${text}**`;
-  });
-
-  // Step 2: Find all standalone citations and composite citation blocks
-  const allCitations: Array<{
-    turn: string;
-    type: string;
-    index: string;
-    position: number;
-    fullMatch: string;
-    isComposite: boolean;
-  }> = [];
-
-  // Find standalone citations
-  let standaloneMatch: RegExpExecArray | null;
-  const standaloneCopy = new RegExp(STANDALONE_PATTERN.source, 'g');
-  while ((standaloneMatch = standaloneCopy.exec(formattedText)) !== null) {
-    allCitations.push({
-      turn: standaloneMatch[1],
-      type: standaloneMatch[2],
-      index: standaloneMatch[3],
-      position: standaloneMatch.index,
-      fullMatch: standaloneMatch[0],
-      isComposite: false,
-    });
-  }
-
-  // Find composite citation blocks
-  let compositeMatch: RegExpExecArray | null;
-  const compositeCopy = new RegExp(COMPOSITE_REGEX.source, 'g');
-  while ((compositeMatch = compositeCopy.exec(formattedText)) !== null) {
-    const block = compositeMatch[0];
-    const blockStart = compositeMatch.index;
-
-    // Extract individual citations within the composite block
-    let citationMatch: RegExpExecArray | null;
-    const citationPattern = new RegExp(STANDALONE_PATTERN.source, 'g');
-    while ((citationMatch = citationPattern.exec(block)) !== null) {
-      allCitations.push({
-        turn: citationMatch[1],
-        type: citationMatch[2],
-        index: citationMatch[3],
-        position: blockStart + citationMatch.index,
-        fullMatch: block, // Store the full composite block
-        isComposite: true,
-      });
-    }
-  }
-
-  // Sort citations by their position in the text
-  allCitations.sort((a, b) => a.position - b.position);
-
-  // Step 3: Process each citation and build the reference mapping
-  const processedCitations = new Set<string>();
+  // Find all bracket citations and process them
+  const citeTagCopy = new RegExp(CITE_TAG_REGEX.source, 'g');
   const replacements: Array<[string, string]> = [];
-  const compositeCitationsMap = new Map<string, number[]>();
 
-  for (const citation of allCitations) {
-    const { turn, type, index, fullMatch, isComposite } = citation;
-    const searchData = searchResults[turn];
+  let match: RegExpExecArray | null;
+  while ((match = citeTagCopy.exec(text)) !== null) {
+    const fullMatch = match[0];
+    const indexAttr = match[1]; // e.g., "turn0search0" or "turn0search0,turn0news1"
 
-    if (!searchData) continue;
-
-    const dataType = refTypeMap[type.toLowerCase()] || type.toLowerCase();
-    const idx = parseInt(index, 10);
-
-    // Skip if no matching data
-    if (!searchData[dataType] || !searchData[dataType][idx]) {
+    // Parse all indices (supports comma-separated for multiple sources)
+    const parsedIndices = parseIndices(indexAttr);
+    if (!parsedIndices || parsedIndices.length === 0) {
+      // Invalid index format - remove the tag
+      replacements.push([fullMatch, '']);
       continue;
     }
 
-    // Get source data
-    const sourceData = searchData[dataType][idx];
-    const sourceUrl = sourceData.link || '';
+    const referenceNumbers: number[] = [];
 
-    // Skip if no link
-    if (!sourceUrl) continue;
+    for (const { turn, sourceKey, index } of parsedIndices) {
+      const searchData = searchResults[turn.toString()];
+      if (!searchData) continue;
 
-    // Check if this URL has already been cited
-    let citationKey = urlToCitationKey.get(sourceUrl);
+      const dataType = refTypeMap[sourceKey.toLowerCase()] || sourceKey.toLowerCase();
+      const sourceArray = searchData[dataType];
 
-    // If not, create a new citation key
-    if (!citationKey) {
-      citationKey = `${turn}-${dataType}-${idx}`;
-      urlToCitationKey.set(sourceUrl, citationKey);
-    }
-
-    const source: Source = {
-      link: sourceUrl,
-      title: sourceData.title || sourceData.name || '',
-      attribution: sourceData.attribution || sourceData.source || '',
-      type: dataType,
-      typeIndex: idx,
-      citationKey,
-    };
-
-    // Skip if already processed this citation in a composite block
-    if (isComposite && processedCitations.has(fullMatch)) {
-      continue;
-    }
-
-    let referenceText = '';
-
-    // Check if this source has been cited before
-    let existingCitation = citations.get(citationKey);
-
-    if (!existingCitation) {
-      // New citation
-      existingCitation = {
-        referenceNumber: nextReferenceNumber++,
-        link: source.link,
-        title: source.title,
-        source,
-      };
-      citations.set(citationKey, existingCitation);
-    }
-
-    if (existingCitation) {
-      // For composite blocks, we need to find all citations and create a combined reference
-      if (isComposite) {
-        // Parse all citations in this composite block if we haven't processed it yet
-        if (!processedCitations.has(fullMatch)) {
-          const compositeCitations: number[] = [];
-          let citationMatch: RegExpExecArray | null;
-          const citationPattern = new RegExp(STANDALONE_PATTERN.source, 'g');
-
-          while ((citationMatch = citationPattern.exec(fullMatch)) !== null) {
-            const cTurn = citationMatch[1];
-            const cType = citationMatch[2];
-            const cIndex = citationMatch[3];
-            const cDataType = refTypeMap[cType.toLowerCase()] || cType.toLowerCase();
-
-            const cSource = searchResults[cTurn]?.[cDataType]?.[parseInt(cIndex, 10)];
-            if (cSource && cSource.link) {
-              // Check if we've already created a citation for this URL
-              const cUrl = cSource.link;
-              let cKey = urlToCitationKey.get(cUrl);
-
-              if (!cKey) {
-                cKey = `${cTurn}-${cDataType}-${cIndex}`;
-                urlToCitationKey.set(cUrl, cKey);
-              }
-
-              let cCitation = citations.get(cKey);
-
-              if (!cCitation) {
-                cCitation = {
-                  referenceNumber: nextReferenceNumber++,
-                  link: cSource.link,
-                  title: cSource.title || cSource.name || '',
-                  source: {
-                    link: cSource.link,
-                    title: cSource.title || cSource.name || '',
-                    attribution: cSource.attribution || cSource.source || '',
-                    type: cDataType,
-                    typeIndex: parseInt(cIndex, 10),
-                    citationKey: cKey,
-                  },
-                };
-                citations.set(cKey, cCitation);
-              }
-
-              if (cCitation) {
-                compositeCitations.push(cCitation.referenceNumber);
-              }
-            }
-          }
-
-          // Sort and deduplicate the composite citations
-          const uniqueSortedCitations = [...new Set(compositeCitations)].sort((a, b) => a - b);
-
-          // Create combined reference numbers for all citations in this composite
-          referenceText =
-            uniqueSortedCitations.length > 0
-              ? uniqueSortedCitations.map((num) => `[${num}]`).join('')
-              : '';
-
-          processedCitations.add(fullMatch);
-          compositeCitationsMap.set(fullMatch, uniqueSortedCitations);
-          replacements.push([fullMatch, referenceText]);
-        }
-
-        // Skip further processing since we've handled the entire composite block
+      // Skip if no matching data
+      if (!sourceArray || !sourceArray[index]) {
         continue;
-      } else {
-        // Single citation
-        referenceText = `[${existingCitation.referenceNumber}]`;
-        replacements.push([fullMatch, referenceText]);
       }
+
+      // Get source data
+      const sourceData = sourceArray[index];
+      const sourceUrl = sourceData.link || '';
+
+      // Skip if no link
+      if (!sourceUrl) continue;
+
+      // Check if this URL has already been cited
+      let citationKey = urlToCitationKey.get(sourceUrl);
+
+      // If not, create a new citation key
+      if (!citationKey) {
+        citationKey = `${turn}-${dataType}-${index}`;
+        urlToCitationKey.set(sourceUrl, citationKey);
+      }
+
+      // Check if this source has been cited before
+      let existingCitation = citations.get(citationKey);
+
+      if (!existingCitation) {
+        // New citation
+        const source: Source = {
+          link: sourceUrl,
+          title: sourceData.title || sourceData.name || '',
+          attribution: sourceData.attribution || sourceData.source || '',
+          type: dataType,
+          typeIndex: index,
+          citationKey,
+        };
+
+        existingCitation = {
+          referenceNumber: nextReferenceNumber++,
+          link: source.link,
+          title: source.title,
+          source,
+        };
+        citations.set(citationKey, existingCitation);
+      }
+
+      referenceNumbers.push(existingCitation.referenceNumber);
     }
+
+    // Sort and deduplicate reference numbers
+    const uniqueSortedRefs = [...new Set(referenceNumbers)].sort((a, b) => a - b);
+
+    // Format the replacement: reference numbers (self-closing tags have no content)
+    let replacement: string;
+    if (uniqueSortedRefs.length === 0) {
+      // No valid references found - remove the tag
+      replacement = '';
+    } else {
+      // Show reference numbers
+      replacement = uniqueSortedRefs.map((num) => `[${num}]`).join('');
+    }
+
+    replacements.push([fullMatch, replacement]);
   }
 
-  // Step 4: Apply all replacements (from longest to shortest to avoid nested replacement issues)
+  // Apply all replacements (from longest to shortest to avoid nested replacement issues)
   replacements.sort((a, b) => b[0].length - a[0].length);
   for (const [pattern, replacement] of replacements) {
     formattedText = formattedText.replace(pattern, replacement);
   }
 
-  // Step 5: Remove any orphaned composite blocks at the end of the text
-  // This prevents the [1][2][3][4] list that might appear at the end if there's a composite there
+  // Remove any orphaned reference lists at the end of the text
   formattedText = formattedText.replace(/\n\s*\[\d+\](\[\d+\])*\s*$/g, '');
 
-  // Step 6: Clean up any remaining citation markers
-  formattedText = formattedText.replace(INVALID_CITATION_REGEX, '');
+  // Clean up any remaining citation markers
   formattedText = formattedText.replace(CLEANUP_REGEX, '');
 
   return {

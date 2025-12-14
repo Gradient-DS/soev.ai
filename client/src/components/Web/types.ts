@@ -13,6 +13,11 @@ export type CitationProps = {
   citationType?: string;
   citations?: Array<Citation>;
   citation?: Citation;
+  // Data attributes for rehype-raw serialization
+  'data-citation'?: string;
+  'data-citations'?: string;
+  'data-citation-type'?: string;
+  'data-citation-id'?: string;
 };
 
 export type CitationNode = {

@@ -325,12 +325,12 @@ Current Date & Time: ${replaceSpecialVars({ text: '{{iso_datetime}}' })}
 1. Search ONCE, then answer using the content provided
 2. Do NOT search again to "open" a source - you cannot open URLs, and you already have the content
 3. If the highlights don't contain enough info, that source simply doesn't have what you need
-4. Use the citation anchors provided (e.g., \\ue202turn0search0) to cite sources
+4. Use bracket citations after statements: Statement here.【turn0search0】
 
 ## After searching:
 - Read the highlights from each source
 - Synthesize a complete answer
-- Cite sources inline using the anchor format
+- Cite sources inline: claim or fact here.【turn0search0】
 `.trim();
         return createCustomSearchTool({
           ...result.authResult,

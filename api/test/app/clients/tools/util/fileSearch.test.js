@@ -172,8 +172,8 @@ describe('fileSearch.js - tuple return validation', () => {
 
       const [formattedString, artifact] = result;
 
-      expect(formattedString).toContain('Anchor:');
-      expect(formattedString).toContain('\\ue202turn0file0');
+      expect(formattedString).toContain('Cite as:');
+      expect(formattedString).toContain('【turn0file_search0】');
       expect(artifact.file_search.fileCitations).toBe(true);
     });
 

@@ -22,6 +22,14 @@ const TextPart = memo(({ text, isCreatedByUser, showCursor }: TextPartProps) => 
   const enableUserMsgMarkdown = useRecoilValue(store.enableUserMsgMarkdown);
   const showCursorState = useMemo(() => showCursor && isSubmitting, [showCursor, isSubmitting]);
 
+  // DEBUG: Log what text is being rendered
+  console.log('[TextPart] Rendering text:', {
+    textLength: text.length,
+    isCreatedByUser,
+    hasCiteTags: text.includes('<cite'),
+    first100: text.slice(0, 100),
+  });
+
   const content: ContentType = useMemo(() => {
     if (!isCreatedByUser) {
       return <Markdown content={text} isLatestMessage={isLatestMessage} />;
