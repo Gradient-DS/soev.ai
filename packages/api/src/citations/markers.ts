@@ -11,8 +11,7 @@ import type { SourceInput } from './types';
  * Generate citation markers for LLM output
  *
  * Creates a formatted guide that tells the LLM how to cite sources.
- * Format: \ue202turn{N}{sourceKey}{index} for document-level
- *         \ue202turn{N}{sourceKey}{index}p{page} for page-level
+ * Format: \ue202turn{N}{sourceKey}{index}
  *
  * @param sources - Array of source inputs
  * @param turn - Conversation turn number
@@ -47,14 +46,6 @@ export function generateCitationMarkers(
 
     // Server-name-based citation marker: \ue202turn{N}{sourceKey}{index}
     citationGuide += `- ${fileName}${metadataStr}: \\ue202turn${turn}${sourceKey}${index}\n`;
-
-    // Page-level citation markers when pages are available
-    if (source.pages && source.pages.length > 0) {
-      citationGuide += `  Page-level citations:\n`;
-      source.pages.forEach((page) => {
-        citationGuide += `  - Page ${page}: \\ue202turn${turn}${sourceKey}${index}p${page}\n`;
-      });
-    }
   });
 
   return citationGuide;
@@ -80,17 +71,16 @@ export function sanitizeSourceKey(serverName: string): string {
 /**
  * Parse a citation marker to extract its components
  *
- * @param marker - The citation marker (e.g., "turn0neo_nl0p3")
+ * @param marker - The citation marker (e.g., "turn0neo_nl0")
  * @returns Parsed marker components or null if invalid
  */
 export function parseCitationMarker(marker: string): {
   turn: number;
   sourceKey: string;
   index: number;
-  page?: number;
 } | null {
-  // Match format: turn{N}{sourceKey}{index}[p{page}]
-  const match = marker.match(/^turn(\d+)([a-z_]+)(\d+)(?:p(\d+))?$/);
+  // Match format: turn{N}{sourceKey}{index}
+  const match = marker.match(/^turn(\d+)([a-z_]+)(\d+)$/);
   if (!match) {
     return null;
   }
@@ -99,6 +89,5 @@ export function parseCitationMarker(marker: string): {
     turn: parseInt(match[1], 10),
     sourceKey: match[2],
     index: parseInt(match[3], 10),
-    page: match[4] ? parseInt(match[4], 10) : undefined,
   };
 }

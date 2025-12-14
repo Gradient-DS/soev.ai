@@ -6,7 +6,6 @@ export type Citation = {
   refType: SearchRefType | string;
   index: number;
   origin?: CitationOrigin;
-  page?: number; // Specific page reference for page-level citations
 };
 
 export type CitationProps = {
