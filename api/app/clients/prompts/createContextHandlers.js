@@ -1,14 +1,23 @@
 const axios = require('axios');
 const { logger } = require('@librechat/data-schemas');
 const { isEnabled, generateShortLivedToken } = require('@librechat/api');
+const { getPrompt } = require('~/server/services/Config');
 
-const footer = `Use the context as your learned knowledge to better answer the user.
+// Hardcoded fallback for RAG footer
+const FALLBACK_FOOTER = `Use the context as your learned knowledge to better answer the user.
 
 In your response, remember to follow these guidelines:
 - If you don't know the answer, simply say that you don't know.
 - If you are unsure how to answer, ask for clarification.
 - Avoid mentioning that you obtained the information from the context.
 `;
+
+// Hardcoded fallback for no results message
+const FALLBACK_NO_RESULTS = 'The semantic search did not return any results.';
+
+// Hardcoded fallback for semantic search note
+const FALLBACK_SEMANTIC_NOTE =
+  "A semantic search was executed with the user's message as the query, retrieving the following context inside <context></context> XML tags.";
 
 function createContextHandlers(req, userMessageContent) {
   if (!process.env.RAG_API_URL) {
@@ -65,6 +74,11 @@ function createContextHandlers(req, userMessageContent) {
         return '';
       }
 
+      // Load configurable prompts
+      const footer = await getPrompt(['rag', 'footer'], FALLBACK_FOOTER);
+      const noResultsMessage = await getPrompt(['rag', 'noResultsMessage'], FALLBACK_NO_RESULTS);
+      const semanticSearchNote = await getPrompt(['rag', 'semanticSearchNote'], FALLBACK_SEMANTIC_NOTE);
+
       const oneFile = processedFiles.length === 1;
       const header = `The user has attached ${oneFile ? 'a' : processedFiles.length} file${
         !oneFile ? 's' : ''
@@ -94,7 +108,7 @@ function createContextHandlers(req, userMessageContent) {
 
       const context =
         resolvedQueries.length === 0
-          ? '\n\tThe semantic search did not return any results.'
+          ? `\n\t${noResultsMessage}`
           : resolvedQueries
               .map((queryResult, index) => {
                 const file = processedFiles[index];
@@ -137,7 +151,7 @@ function createContextHandlers(req, userMessageContent) {
       const prompt = `${header}
         ${files}
 
-        A semantic search was executed with the user's message as the query, retrieving the following context inside <context></context> XML tags.
+        ${semanticSearchNote}
 
         <context>${context}
         </context>

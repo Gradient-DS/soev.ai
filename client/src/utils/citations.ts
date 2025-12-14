@@ -26,6 +26,7 @@ export const INDEX_PATTERN = /^turn(\d+)([a-zA-Z][a-zA-Z0-9_]*)(\d+)$/;
 
 /**
  * Parses comma-separated indices.
+ * Supports both regular comma (,) and Chinese ideographic comma (、).
  * Returns array of { turn, sourceKey, index } objects or null if invalid.
  */
 export function parseIndices(indexAttr: string): Array<{
@@ -33,7 +34,8 @@ export function parseIndices(indexAttr: string): Array<{
   sourceKey: string;
   index: number;
 }> | null {
-  const parts = indexAttr.split(',').map((s) => s.trim());
+  // Split by both regular comma and Chinese ideographic comma (、 U+3001)
+  const parts = indexAttr.split(/[,、]/).map((s) => s.trim());
   const results: Array<{ turn: number; sourceKey: string; index: number }> = [];
 
   for (const part of parts) {

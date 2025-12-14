@@ -8,26 +8,20 @@
 import { useState, useContext } from 'react';
 import { ExternalLink } from 'lucide-react';
 import { useCompositeCitations } from '~/components/Web/Context';
-import { useGetStartupConfig } from '~/data-provider';
 import { useLocalize } from '~/hooks';
 import { inlinePillClickable, inlinePillNeutral } from './styles';
 import {
-  getDisplayLabel,
   hasExternalUrl as checkHasUrl,
-  getExternalUrl,
   getCleanDomain,
   parseCitationsFromProps,
   normalizeSource,
 } from './utils';
 import { CitationHoverCard } from './CitationHoverCard';
-import { ExternalLinkConfirm } from './ExternalLinkConfirm';
 import { CitationContext } from './CitationProvider';
 import type { CitationInlineMultipleProps, UnifiedCitation } from './types';
 
 export function CitationInlineMultiple(props: CitationInlineMultipleProps) {
   const localize = useLocalize();
-  const { data: startupConfig } = useGetStartupConfig();
-  const showExternalLinkConfirm = startupConfig?.interface?.externalLinkConfirm !== false;
   const citationContext = useContext(CitationContext);
   const [currentPage, setCurrentPage] = useState(0);
 
@@ -56,10 +50,6 @@ export function CitationInlineMultiple(props: CitationInlineMultipleProps) {
 
   const totalPages = unifiedCitations.length;
   const currentCitation = unifiedCitations[currentPage];
-
-  // Check if current citation has URL
-  const hasUrl = checkHasUrl(currentCitation);
-  const externalUrl = getExternalUrl(currentCitation);
 
   // Build label: "First Source +N"
   const getCitationLabel = () => {
@@ -103,32 +93,21 @@ export function CitationInlineMultiple(props: CitationInlineMultipleProps) {
     citationContext?.setHoveredCitationId(null);
   };
 
-  // Pill content
+  // Pill content - always show external link icon if any citation has a URL
+  const anyHasUrl = unifiedCitations.some(c => checkHasUrl(c));
   const pillContent = (
     <span
-      className={hasUrl ? inlinePillClickable : inlinePillNeutral}
+      className={anyHasUrl ? inlinePillClickable : inlinePillNeutral}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
       <span className="truncate">{getCitationLabel()}</span>
-      {hasUrl && <ExternalLink className="h-3 w-3 flex-shrink-0" />}
+      {anyHasUrl && <ExternalLink className="h-3 w-3 flex-shrink-0" />}
     </span>
   );
 
-  // For clickable citations (with URL): show ExternalLinkConfirm on click, no hovercard
-  // For non-clickable citations: show hovercard with carousel navigation
-  if (hasUrl && externalUrl) {
-    if (showExternalLinkConfirm) {
-      return <ExternalLinkConfirm url={externalUrl} trigger={pillContent} />;
-    }
-    return (
-      <a href={externalUrl} target="_blank" rel="noopener noreferrer" className="contents">
-        {pillContent}
-      </a>
-    );
-  }
-
-  // Non-clickable: wrap with hovercard for details and navigation
+  // Always show hovercard with carousel navigation for composite citations
+  // The hovercard itself contains clickable links for citations with URLs
   return (
     <CitationHoverCard
       citation={currentCitation}

@@ -1340,6 +1340,10 @@ export enum CacheKeys {
    * Key for SAML session.
    */
   SAML_SESSION = 'SAML_SESSION',
+  /**
+   * Key for the prompts config cache.
+   */
+  PROMPTS_CONFIG = 'PROMPTS_CONFIG',
 }
 
 /**

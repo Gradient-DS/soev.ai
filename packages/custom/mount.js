@@ -84,6 +84,7 @@ module.exports = (app) => {
         CacheKeys.TOOLS,
         CacheKeys.PLUGINS,
         CacheKeys.CUSTOM_CONFIG,
+        CacheKeys.PROMPTS_CONFIG,
       ];
       for (const key of keysToDelete) {
         await configCache.delete(key);
