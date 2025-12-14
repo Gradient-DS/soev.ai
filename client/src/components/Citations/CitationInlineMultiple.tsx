@@ -8,6 +8,7 @@
 import { useState, useContext } from 'react';
 import { ExternalLink } from 'lucide-react';
 import { useCompositeCitations } from '~/components/Web/Context';
+import { useGetStartupConfig } from '~/data-provider';
 import { useLocalize } from '~/hooks';
 import { inlinePillClickable, inlinePillNeutral } from './styles';
 import {
@@ -25,6 +26,8 @@ import type { CitationInlineMultipleProps, UnifiedCitation } from './types';
 
 export function CitationInlineMultiple(props: CitationInlineMultipleProps) {
   const localize = useLocalize();
+  const { data: startupConfig } = useGetStartupConfig();
+  const showExternalLinkConfirm = startupConfig?.interface?.externalLinkConfirm !== false;
   const citationContext = useContext(CitationContext);
   const [currentPage, setCurrentPage] = useState(0);
 
@@ -115,8 +118,13 @@ export function CitationInlineMultiple(props: CitationInlineMultipleProps) {
   // For clickable citations (with URL): show ExternalLinkConfirm on click, no hovercard
   // For non-clickable citations: show hovercard with carousel navigation
   if (hasUrl && externalUrl) {
+    if (showExternalLinkConfirm) {
+      return <ExternalLinkConfirm url={externalUrl} trigger={pillContent} />;
+    }
     return (
-      <ExternalLinkConfirm url={externalUrl} trigger={pillContent} />
+      <a href={externalUrl} target="_blank" rel="noopener noreferrer" className="contents">
+        {pillContent}
+      </a>
     );
   }
 

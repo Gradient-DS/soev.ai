@@ -567,6 +567,7 @@ export const interfaceSchema = z
       .optional(),
     fileSearch: z.boolean().optional(),
     fileCitations: z.boolean().optional(),
+    externalLinkConfirm: z.boolean().optional(),
   })
   .default({
     endpointsMenu: true,
@@ -592,6 +593,7 @@ export const interfaceSchema = z
     },
     fileSearch: true,
     fileCitations: true,
+    externalLinkConfirm: true,
   });
 
 export type TInterfaceConfig = z.infer<typeof interfaceSchema>;

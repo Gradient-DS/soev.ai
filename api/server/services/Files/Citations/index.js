@@ -55,8 +55,15 @@ async function processFileCitations({ user, appConfig, toolArtifact, toolCallId,
     const maxCitations = appConfig.endpoints?.[EModelEndpoint.agents]?.maxCitations ?? 30;
     const maxCitationsPerFile =
       appConfig.endpoints?.[EModelEndpoint.agents]?.maxCitationsPerFile ?? 5;
-    const minRelevanceScore =
-      appConfig.endpoints?.[EModelEndpoint.agents]?.minRelevanceScore ?? 0.45;
+    const configuredMinRelevanceScore = appConfig.endpoints?.[EModelEndpoint.agents]?.minRelevanceScore;
+    const minRelevanceScore = configuredMinRelevanceScore ?? 0.45;
+
+    logger.debug(`[processFileCitations] Config check - agents endpoint config:`, {
+      hasAgentsEndpoint: !!appConfig.endpoints?.[EModelEndpoint.agents],
+      configuredMinRelevanceScore,
+      minRelevanceScore,
+      agentsConfig: JSON.stringify(appConfig.endpoints?.[EModelEndpoint.agents] || {}).slice(0, 500),
+    });
 
     const sources = toolArtifact[Tools.file_search].sources || [];
     const filteredSources = sources.filter((source) => source.relevance >= minRelevanceScore);
