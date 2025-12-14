@@ -53,6 +53,7 @@ export async function loadDefaultInterface({
     webSearch: interfaceConfig?.webSearch,
     fileSearch: interfaceConfig?.fileSearch,
     fileCitations: interfaceConfig?.fileCitations,
+    externalLinkConfirm: interfaceConfig?.externalLinkConfirm,
     peoplePicker: interfaceConfig?.peoplePicker,
     marketplace: interfaceConfig?.marketplace,
   });

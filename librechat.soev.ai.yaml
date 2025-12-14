@@ -45,6 +45,7 @@ interface:
   webSearch: true
   bookmarks: true
   multiConvo: false
+  externalLinkConfirm: true
   fileCitations: true
   memories: false
   fileSearch: true

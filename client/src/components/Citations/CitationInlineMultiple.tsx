@@ -8,6 +8,7 @@
 import { useState, useContext } from 'react';
 import { ExternalLink } from 'lucide-react';
 import { useCompositeCitations } from '~/components/Web/Context';
+import { useGetStartupConfig } from '~/data-provider';
 import { useLocalize } from '~/hooks';
 import { inlinePillClickable, inlinePillNeutral } from './styles';
 import {
@@ -26,6 +27,9 @@ import type { CitationInlineMultipleProps, UnifiedCitation } from './types';
 export function CitationInlineMultiple(props: CitationInlineMultipleProps) {
   const localize = useLocalize();
   const citationContext = useContext(CitationContext);
+  const { data: startupConfig } = useGetStartupConfig();
+  const showExternalLinkConfirm =
+    (startupConfig?.interface as Record<string, unknown> | undefined)?.externalLinkConfirm !== false;
   const [currentPage, setCurrentPage] = useState(0);
 
   // Parse citations from props
@@ -112,11 +116,17 @@ export function CitationInlineMultiple(props: CitationInlineMultipleProps) {
     </span>
   );
 
-  // For clickable citations (with URL): show ExternalLinkConfirm on click, no hovercard
+  // For clickable citations (with URL): show ExternalLinkConfirm on click (if enabled), no hovercard
   // For non-clickable citations: show hovercard with carousel navigation
   if (hasUrl && externalUrl) {
+    if (showExternalLinkConfirm) {
+      return <ExternalLinkConfirm url={externalUrl} trigger={pillContent} />;
+    }
+    // Direct link without confirmation dialog
     return (
-      <ExternalLinkConfirm url={externalUrl} trigger={pillContent} />
+      <a href={externalUrl} target="_blank" rel="noopener noreferrer" className="contents">
+        {pillContent}
+      </a>
     );
   }
 

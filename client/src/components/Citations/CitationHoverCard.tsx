@@ -16,6 +16,7 @@ export const HovercardStoreContext = createContext<Ariakit.HovercardStore | null
 export function useHovercardStore() {
   return useContext(HovercardStoreContext);
 }
+import { useGetStartupConfig } from '~/data-provider';
 import { useLocalize } from '~/hooks';
 import {
   hovercardContainer,
@@ -65,6 +66,9 @@ function HoverCardContent({
   onNext,
 }: HoverCardContentProps) {
   const localize = useLocalize();
+  const { data: startupConfig } = useGetStartupConfig();
+  const showExternalLinkConfirm =
+    (startupConfig?.interface as Record<string, unknown> | undefined)?.externalLinkConfirm !== false;
   const isWebSource = citation.origin === 'web_search';
   const domain = getCleanDomain(citation.url || citation.link || '');
   const externalUrl = getExternalUrl(citation);
@@ -126,14 +130,25 @@ function HoverCardContent({
         )}
 
         {hasUrl && externalUrl ? (
-          <ExternalLinkConfirm
-            url={externalUrl}
-            trigger={
-              <span className={hovercardTitleClickable}>
-                {displayTitle}
-              </span>
-            }
-          />
+          showExternalLinkConfirm ? (
+            <ExternalLinkConfirm
+              url={externalUrl}
+              trigger={
+                <span className={hovercardTitleClickable}>
+                  {displayTitle}
+                </span>
+              }
+            />
+          ) : (
+            <a
+              href={externalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={hovercardTitleClickable}
+            >
+              {displayTitle}
+            </a>
+          )
         ) : (
           <span className={hovercardTitleNeutral}>
             {displayTitle}

@@ -3,7 +3,7 @@ import { useRecoilValue } from 'recoil';
 import { useToastContext } from '@librechat/client';
 import { Download, ExternalLink } from 'lucide-react';
 import { ExternalLinkDialog } from './ExternalLinkDialog';
-import { useFileDownload } from '~/data-provider';
+import { useFileDownload, useGetStartupConfig } from '~/data-provider';
 import { useLocalize } from '~/hooks';
 import store from '~/store';
 
@@ -53,6 +53,9 @@ export const MCPFileItem = React.memo(function MCPFileItem({
   const localize = useLocalize();
   const user = useRecoilValue(store.user);
   const { showToast } = useToastContext();
+  const { data: startupConfig } = useGetStartupConfig();
+  const showExternalLinkConfirm =
+    (startupConfig?.interface as Record<string, unknown> | undefined)?.externalLinkConfirm !== false;
 
   const { refetch: downloadFile } = useFileDownload(user?.id ?? '', file.file_id);
 
@@ -152,42 +155,47 @@ export const MCPFileItem = React.memo(function MCPFileItem({
 
   if (expanded) {
     if (hasExternalUrl && externalUrl) {
+      const expandedExternalButton = (
+        <button
+          className="flex h-full w-full flex-col rounded-lg bg-surface-primary-contrast px-3 py-2 text-sm transition-all duration-300 hover:bg-surface-tertiary [&:hover_.filename]:text-blue-600 dark:[&:hover_.filename]:text-blue-400"
+          aria-label={`${file.filename} - ${localize('com_external_link_warning_title')}`}
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-base">{fileIcon}</span>
+            <span className="truncate text-xs font-medium text-text-secondary">
+              {localize('com_sources_agent_file')}
+            </span>
+            <ExternalLink className="ml-auto h-3 w-3" />
+          </div>
+          <div className="mt-1 min-w-0">
+            <span className="filename line-clamp-2 break-all text-left text-sm font-medium text-text-primary transition-colors md:line-clamp-3">
+              {file.filename}
+            </span>
+            {file.pages && file.pages.length > 0 && (
+              <span className="mt-1 line-clamp-1 text-left text-xs text-text-secondary">
+                {localize('com_sources_pages')}:{' '}
+                {sortPagesByRelevance(file.pages, file.pageRelevance).join(', ')}
+              </span>
+            )}
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-text-secondary">
+              <MetadataBadges />
+              {file.bytes && (
+                <span className="line-clamp-1">{(file.bytes / 1024).toFixed(1)} KB</span>
+              )}
+            </div>
+          </div>
+          {error && <div className="mt-1 text-xs text-red-500">{getErrorMessage(error)}</div>}
+        </button>
+      );
+
+      if (showExternalLinkConfirm) {
+        return <ExternalLinkDialog url={externalUrl} trigger={expandedExternalButton} />;
+      }
+      // Direct link without confirmation dialog
       return (
-        <ExternalLinkDialog
-          url={externalUrl}
-          trigger={
-            <button 
-              className="flex h-full w-full flex-col rounded-lg bg-surface-primary-contrast px-3 py-2 text-sm transition-all duration-300 hover:bg-surface-tertiary [&:hover_.filename]:text-blue-600 dark:[&:hover_.filename]:text-blue-400"
-              aria-label={`${file.filename} - ${localize('com_external_link_warning_title')}`}
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-base">{fileIcon}</span>
-                <span className="truncate text-xs font-medium text-text-secondary">
-                  {localize('com_sources_agent_file')}
-                </span>
-                <ExternalLink className="ml-auto h-3 w-3" />
-              </div>
-              <div className="mt-1 min-w-0">
-                <span className="filename line-clamp-2 break-all text-left text-sm font-medium text-text-primary transition-colors md:line-clamp-3">
-                  {file.filename}
-                </span>
-                {file.pages && file.pages.length > 0 && (
-                  <span className="mt-1 line-clamp-1 text-left text-xs text-text-secondary">
-                    {localize('com_sources_pages')}:{' '}
-                    {sortPagesByRelevance(file.pages, file.pageRelevance).join(', ')}
-                  </span>
-                )}
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-text-secondary">
-                  <MetadataBadges />
-                  {file.bytes && (
-                    <span className="line-clamp-1">{(file.bytes / 1024).toFixed(1)} KB</span>
-                  )}
-                </div>
-              </div>
-              {error && <div className="mt-1 text-xs text-red-500">{getErrorMessage(error)}</div>}
-            </button>
-          }
-        />
+        <a href={externalUrl} target="_blank" rel="noopener noreferrer" className="contents">
+          {expandedExternalButton}
+        </a>
       );
     }
 
@@ -232,37 +240,42 @@ export const MCPFileItem = React.memo(function MCPFileItem({
   }
 
   if (hasExternalUrl && externalUrl) {
+    const compactExternalButton = (
+      <button
+        className="flex h-full w-full flex-col rounded-lg bg-surface-primary-contrast px-3 py-2 text-sm transition-all duration-300 hover:bg-surface-tertiary [&:hover_.filename]:text-blue-600 dark:[&:hover_.filename]:text-blue-400"
+        aria-label={`${file.filename} - ${localize('com_external_link_warning_title')}`}
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-base">{fileIcon}</span>
+          <span className="truncate text-xs font-medium text-text-secondary">
+            {localize('com_sources_agent_file')}
+          </span>
+          <ExternalLink className="ml-auto h-3 w-3" />
+        </div>
+        <div className="mt-1 min-w-0">
+          <span className="filename line-clamp-2 break-all text-left text-sm font-medium text-text-primary transition-colors md:line-clamp-3">
+            {file.filename}
+          </span>
+          {file.pages && file.pages.length > 0 && (
+            <span className="mt-1 line-clamp-1 text-left text-xs text-text-secondary">
+              {localize('com_sources_pages')}:{' '}
+              {sortPagesByRelevance(file.pages, file.pageRelevance).join(', ')}
+            </span>
+          )}
+          <MetadataBadges />
+        </div>
+        {error && <div className="mt-1 text-xs text-red-500">{getErrorMessage(error)}</div>}
+      </button>
+    );
+
+    if (showExternalLinkConfirm) {
+      return <ExternalLinkDialog url={externalUrl} trigger={compactExternalButton} />;
+    }
+    // Direct link without confirmation dialog
     return (
-      <ExternalLinkDialog
-        url={externalUrl}
-        trigger={
-          <button 
-            className="flex h-full w-full flex-col rounded-lg bg-surface-primary-contrast px-3 py-2 text-sm transition-all duration-300 hover:bg-surface-tertiary [&:hover_.filename]:text-blue-600 dark:[&:hover_.filename]:text-blue-400"
-            aria-label={`${file.filename} - ${localize('com_external_link_warning_title')}`}
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-base">{fileIcon}</span>
-              <span className="truncate text-xs font-medium text-text-secondary">
-                {localize('com_sources_agent_file')}
-              </span>
-              <ExternalLink className="ml-auto h-3 w-3" />
-            </div>
-            <div className="mt-1 min-w-0">
-              <span className="filename line-clamp-2 break-all text-left text-sm font-medium text-text-primary transition-colors md:line-clamp-3">
-                {file.filename}
-              </span>
-              {file.pages && file.pages.length > 0 && (
-                <span className="mt-1 line-clamp-1 text-left text-xs text-text-secondary">
-                  {localize('com_sources_pages')}:{' '}
-                  {sortPagesByRelevance(file.pages, file.pageRelevance).join(', ')}
-                </span>
-              )}
-              <MetadataBadges />
-            </div>
-            {error && <div className="mt-1 text-xs text-red-500">{getErrorMessage(error)}</div>}
-          </button>
-        }
-      />
+      <a href={externalUrl} target="_blank" rel="noopener noreferrer" className="contents">
+        {compactExternalButton}
+      </a>
     );
   }
 

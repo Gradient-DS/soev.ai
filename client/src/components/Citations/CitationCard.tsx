@@ -6,6 +6,7 @@
  */
 
 import { Paperclip, ExternalLink } from 'lucide-react';
+import { useGetStartupConfig } from '~/data-provider';
 import { useLocalize } from '~/hooks';
 import {
   cardCompact,
@@ -32,6 +33,9 @@ function FaviconImage({ domain, className = '' }: { domain: string; className?: 
 
 export function CitationCard({ citation, variant, showHoverCard }: CitationCardProps) {
   const localize = useLocalize();
+  const { data: startupConfig } = useGetStartupConfig();
+  const showExternalLinkConfirm =
+    (startupConfig?.interface as Record<string, unknown> | undefined)?.externalLinkConfirm !== false;
   const isWebSource = citation.origin === 'web_search';
   const domain = getCleanDomain(citation.url || citation.link || '');
   const externalUrl = getExternalUrl(citation);
@@ -77,8 +81,14 @@ export function CitationCard({ citation, variant, showHoverCard }: CitationCardP
     );
 
     if (hasUrl && externalUrl) {
+      if (showExternalLinkConfirm) {
+        return <ExternalLinkConfirm url={externalUrl} trigger={cardContent} />;
+      }
+      // Direct link without confirmation dialog
       return (
-        <ExternalLinkConfirm url={externalUrl} trigger={cardContent} />
+        <a href={externalUrl} target="_blank" rel="noopener noreferrer" className="contents">
+          {cardContent}
+        </a>
       );
     }
 
@@ -151,8 +161,14 @@ export function CitationCard({ citation, variant, showHoverCard }: CitationCardP
   );
 
   if (hasUrl && externalUrl) {
+    if (showExternalLinkConfirm) {
+      return <ExternalLinkConfirm url={externalUrl} trigger={expandedContent} />;
+    }
+    // Direct link without confirmation dialog
     return (
-      <ExternalLinkConfirm url={externalUrl} trigger={expandedContent} />
+      <a href={externalUrl} target="_blank" rel="noopener noreferrer" className="contents">
+        {expandedContent}
+      </a>
     );
   }
 
