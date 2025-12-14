@@ -121,7 +121,7 @@ describe('useCopyToClipboard', () => {
     };
 
     it('should format standalone search citations', () => {
-      const text = 'This is a fact \\ue202turn0search0 from search.';
+      const text = 'This is a fact from the source.【turn0search0】 More text.';
 
       const { result } = renderHook(() =>
         useCopyToClipboard({
@@ -134,7 +134,7 @@ describe('useCopyToClipboard', () => {
         result.current(mockSetIsCopied);
       });
 
-      const expectedText = `This is a fact [1] from search.
+      const expectedText = `This is a fact from the source.[1] More text.
 
 Citations:
 [1] https://example.com/search1
@@ -144,7 +144,8 @@ Citations:
     });
 
     it('should format news citations with correct mapping', () => {
-      const text = 'Breaking news \\ue202turn0news0 and more news \\ue202turn0news1.';
+      const text =
+        'Breaking news first story.【turn0news0】 More news second story.【turn0news1】';
 
       const { result } = renderHook(() =>
         useCopyToClipboard({
@@ -157,7 +158,7 @@ Citations:
         result.current(mockSetIsCopied);
       });
 
-      const expectedText = `Breaking news [1] and more news [2].
+      const expectedText = `Breaking news first story.[1] More news second story.[2]
 
 Citations:
 [1] https://example.com/news1
@@ -167,8 +168,9 @@ Citations:
       expect(mockCopy).toHaveBeenCalledWith(expectedText, { format: 'text/plain' });
     });
 
-    it('should handle highlighted text with citations', () => {
-      const text = '\\ue203This is highlighted text\\ue204 \\ue202turn0search0 with citation.';
+    it('should handle citation at end of sentence', () => {
+      const text =
+        'This is cited text.【turn0search0】 More text.';
 
       const { result } = renderHook(() =>
         useCopyToClipboard({
@@ -181,7 +183,7 @@ Citations:
         result.current(mockSetIsCopied);
       });
 
-      const expectedText = `**This is highlighted text** [1] with citation.
+      const expectedText = `This is cited text.[1] More text.
 
 Citations:
 [1] https://example.com/search1
@@ -190,9 +192,9 @@ Citations:
       expect(mockCopy).toHaveBeenCalledWith(expectedText, { format: 'text/plain' });
     });
 
-    it('should handle composite citations', () => {
+    it('should handle multi-source citations (comma-separated indices)', () => {
       const text =
-        'Multiple sources \\ue200\\ue202turn0search0\\ue202turn0news0\\ue202turn0news1\\ue201.';
+        'Multiple sources confirm this.【turn0search0,turn0news0,turn0news1】';
 
       const { result } = renderHook(() =>
         useCopyToClipboard({
@@ -205,7 +207,7 @@ Citations:
         result.current(mockSetIsCopied);
       });
 
-      const expectedText = `Multiple sources [1][2][3].
+      const expectedText = `Multiple sources confirm this.[1][2][3]
 
 Citations:
 [1] https://example.com/search1
@@ -236,7 +238,8 @@ Citations:
         },
       };
 
-      const text = 'First citation \\ue202turn0search0 and second \\ue202turn0news0.';
+      const text =
+        'First citation from search.【turn0search0】 Second from news.【turn0news0】';
 
       const { result } = renderHook(() =>
         useCopyToClipboard({
@@ -249,7 +252,7 @@ Citations:
         result.current(mockSetIsCopied);
       });
 
-      const expectedText = `First citation [1] and second [1].
+      const expectedText = `First citation from search.[1] Second from news.[1]
 
 Citations:
 [1] https://example.com/article
@@ -271,7 +274,7 @@ Citations:
       };
 
       const text =
-        'First mention \\ue202turn0search0. Second mention \\ue202turn0search0. Third \\ue202turn0search0.';
+        'First mention fact one.【turn0search0】 Second mention fact two.【turn0search0】 Third fact three.【turn0search0】';
 
       const { result } = renderHook(() =>
         useCopyToClipboard({
@@ -284,7 +287,7 @@ Citations:
         result.current(mockSetIsCopied);
       });
 
-      const expectedText = `First mention [1]. Second mention [1]. Third [1].
+      const expectedText = `First mention fact one.[1] Second mention fact two.[1] Third fact three.[1]
 
 Citations:
 [1] https://example.com/source1
@@ -296,7 +299,7 @@ Citations:
 
   describe('Edge cases', () => {
     it('should handle missing search results gracefully', () => {
-      const text = 'Text with citation \\ue202turn0search0 but no data.';
+      const text = 'Text with citation.【turn0search0】 No data.';
 
       const { result } = renderHook(() =>
         useCopyToClipboard({
@@ -309,8 +312,8 @@ Citations:
         result.current(mockSetIsCopied);
       });
 
-      // Updated expectation: Citation marker should be removed
-      expect(mockCopy).toHaveBeenCalledWith('Text with citation but no data.', {
+      // Citation tag should be removed
+      expect(mockCopy).toHaveBeenCalledWith('Text with citation. No data.', {
         format: 'text/plain',
       });
     });
@@ -327,7 +330,8 @@ Citations:
         },
       };
 
-      const text = 'Valid citation \\ue202turn0search0 and invalid \\ue202turn0search5.';
+      const text =
+        'Valid citation.【turn0search0】 Invalid ref.【turn0search5】';
 
       const { result } = renderHook(() =>
         useCopyToClipboard({
@@ -340,8 +344,8 @@ Citations:
         result.current(mockSetIsCopied);
       });
 
-      // Updated expectation: Invalid citation marker should be removed
-      const expectedText = `Valid citation [1] and invalid.
+      // Invalid citation removed, valid citation gets reference
+      const expectedText = `Valid citation.[1] Invalid ref.
 
 Citations:
 [1] https://example.com/search1
@@ -362,7 +366,7 @@ Citations:
         },
       };
 
-      const text = 'Citation without link \\ue202turn0search0.';
+      const text = 'Citation without link.【turn0search0】';
 
       const { result } = renderHook(() =>
         useCopyToClipboard({
@@ -375,7 +379,7 @@ Citations:
         result.current(mockSetIsCopied);
       });
 
-      // Updated expectation: Citation marker without link should be removed
+      // Citation tag removed when source has no link
       expect(mockCopy).toHaveBeenCalledWith('Citation without link.', {
         format: 'text/plain',
       });
@@ -391,7 +395,7 @@ Citations:
         },
       };
 
-      const text = 'Text with citations \\ue202turn0search0.\n\n[1][2]';
+      const text = 'Text with citations.【turn0search0】\n\n[1][2]';
 
       const { result } = renderHook(() =>
         useCopyToClipboard({
@@ -404,7 +408,7 @@ Citations:
         result.current(mockSetIsCopied);
       });
 
-      const expectedText = `Text with citations [1].
+      const expectedText = `Text with citations.[1]
 
 Citations:
 [1] https://example.com/1
@@ -427,7 +431,7 @@ Citations:
 
     it('should handle all citation types correctly', () => {
       const text =
-        'Search \\ue202turn0search0, news \\ue202turn0news0, image \\ue202turn0image0, video \\ue202turn0video0, ref \\ue202turn0ref0.';
+        'Search.【turn0search0】 News.【turn0news0】 Image.【turn0image0】 Video.【turn0video0】 Ref.【turn0ref0】';
 
       const { result } = renderHook(() =>
         useCopyToClipboard({
@@ -440,7 +444,7 @@ Citations:
         result.current(mockSetIsCopied);
       });
 
-      const expectedText = `Search [1], news [2], image [3], video [4], ref [5].
+      const expectedText = `Search.[1] News.[2] Image.[3] Video.[4] Ref.[5]
 
 Citations:
 [1] https://example.com/search
@@ -455,7 +459,7 @@ Citations:
   });
 
   describe('Complex scenarios', () => {
-    it('should handle mixed highlighted text and composite citations', () => {
+    it('should handle multiple citations from multiple sources', () => {
       const mockSearchResults: { [key: string]: SearchResultData } = {
         '0': {
           organic: [
@@ -467,7 +471,7 @@ Citations:
       };
 
       const text =
-        '\\ue203Highlighted text with citation\\ue204 \\ue202turn0search0 and composite \\ue200\\ue202turn0search1\\ue202turn0news0\\ue201.';
+        'Cited text.【turn0search0】 Multi-source combined citation.【turn0search1,turn0news0】';
 
       const { result } = renderHook(() =>
         useCopyToClipboard({
@@ -480,7 +484,7 @@ Citations:
         result.current(mockSetIsCopied);
       });
 
-      const expectedText = `**Highlighted text with citation** [1] and composite [2][3].
+      const expectedText = `Cited text.[1] Multi-source combined citation.[2][3]
 
 Citations:
 [1] https://example.com/1

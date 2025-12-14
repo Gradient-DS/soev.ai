@@ -148,23 +148,24 @@ fileConfig:
 #       Authorization: "Bearer ${GKN_MCP_KEY}"
 #     timeout: 60000
 #     chatMenu: true  # Show in chat dropdown (set to false to only use with agents)
+#     fileCitations: true
 #     # Custom instructions provided here (overrides server-provided instructions)
 #     serverInstructions: |
 #       When using the gkn_search tool, synthesize the results into a clear, comprehensive answer in the language of the question.
-      
+#
 #       **CITE SEARCH RESULTS:**
-#       Use the EXACT anchor markers provided in the search results. The results include citation markers like \ue202turn0file0.
-#       Copy these markers into your response immediately after statements derived from that source:
-#       - Single source: "Veenweidegebieden zijn weidegebieden met een hoge waterstand \ue202turn0file1."
-#       - Multiple sources: "Dit wordt ondersteund door meerdere studies \ue200\ue202turn0file0\ue202turn0file1\ue201."
-      
+#       Use bracket citations to reference sources. Append citations after the cited text:
+#       - Single source: Veenweidegebieden zijn weidegebieden met een hoge waterstand.【turn0file_search0】
+#       - Multiple sources: Dit wordt ondersteund door meerdere studies.【turn0file_search0,turn0file_search1】
+#
 #       **Critical rules:**
-#       - Copy the \ue202turn0file{number} markers EXACTLY as shown in the search results
-#       - Place markers immediately after sentences (with a space before)
-#       - Mention the source title/filename in your text before the citation marker
-#       - Do NOT use brackets 【】, markdown links, or footnotes
-      
-#       Synthesize information naturally while preserving these citation markers.
+#       - Use 【turn{N}{sourceKey}{index}】 format
+#       - The index format is: turn number + source key (e.g., file_search, search) + result index
+#       - Place the citation AFTER the cited text
+#       - For multiple sources, separate indices with commas inside the brackets
+#       - Do NOT use markdown links or footnotes
+#
+#       Synthesize information naturally while using these bracket citations.
   # RegelRecht:
   #   type: streamable-http
   #   url: http://localhost:8008/mcp/

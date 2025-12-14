@@ -153,7 +153,7 @@ export function useSearchResultsByTurn(attachments?: TAttachment[]) {
         };
 
         // Store by composite key (sourceKey_turn) for unique citation resolution
-        // This allows citations like \ue202turn0neo_nl0 and \ue202turn1neo_nl0 to resolve to different sources
+        // This allows citations like 【turn0neo_nl0】 and 【turn1neo_nl0】 to resolve to different sources
         const compositeKey = `${sourceKey}_${turn}`;
         console.log('[DEBUG useSearchResultsByTurn] Adding to turnMap with compositeKey:', compositeKey, 'references count:', agentSearchData.references?.length);
         turnMap[compositeKey] = agentSearchData;

@@ -966,7 +966,7 @@ These prompts are embedded in tool definitions and sent to the LLM as part of th
 
 **Source**: `packages/agents/src/tools/search/tool.ts`
 
-- **Location**: `tool.ts:301-323`
+- **Location**: `tool.ts:301-318`
 - **Injected When**: Web search tool is available to the agent
 - **Providers**: Agents endpoint
 
@@ -975,27 +975,21 @@ Real-time search. Results have required citation anchors.
 
 Note: Use ONCE per reply unless instructed otherwise.
 
-Anchors:
-- \ue202turnXtypeY
-- X = turn idx, type = 'search' | 'news' | 'image' | 'ref', Y = item idx
-
-Special Markers:
-- \ue203...\ue204 — highlight start/end of cited text (for Standalone or Group citations)
-- \ue200...\ue201 — group block (e.g. \ue200\ue202turn0search1\ue202turn0news2\ue201)
+**Citation Format:**
+Append bracket citations after cited statements:
+【turnXtypeY】
+- X = turn index (0-based)
+- type = 'search' | 'news' | 'image' | 'ref'
+- Y = item index (0-based)
 
 **CITE EVERY NON-OBVIOUS FACT/QUOTE:**
-Use anchor marker(s) immediately after the statement:
-- Standalone: "Pure functions produce same output. \ue202turn0search0"
-- Standalone (multiple): "Today's News \ue202turn0search0\ue202turn0news0"
-- Highlight: "\ue203Highlight text.\ue204\ue202turn0news1"
-- Group: "Sources. \ue200\ue202turn0search0\ue202turn0news1\ue201"
-- Group Highlight: "\ue203Highlight for group.\ue204 \ue200\ue202turn0search0\ue202turn0news1\ue201"
-- Image: "See photo \ue202turn0image0."
+- Single source: Pure functions produce same output.【turn0search0】
+- Multiple sources: Today's news confirms this.【turn0search0,turn0news0】
 
-**NEVER use markdown links, [1], or footnotes. CITE ONLY with anchors provided.**
+**NEVER use markdown links, [1], or footnotes. CITE ONLY with 【brackets】.**
 ```
 
-**soev.ai Version**: Base tool unchanged from LibreChat. Additional context added via `handleTools.js` (see 8.1.1 below).
+**soev.ai Version**: Modified from LibreChat to use OpenAI-compatible bracket citations. Additional context added via `handleTools.js` (see 8.1.1 below).
 
 ---
 
@@ -1024,24 +1018,22 @@ Current Date & Time: {{iso_datetime}}
 1. Search ONCE, then answer using the content provided
 2. Do NOT search again to "open" a source - you cannot open URLs, and you already have the content
 3. If the highlights don't contain enough info, that source simply doesn't have what you need
-4. Use the citation anchors provided (e.g., \ue202turn0search0) to cite sources
+4. Use bracket citations after statements: Statement here.【turn0search0】
 
 ## After searching:
 - Read the highlights from each source
 - Synthesize a complete answer
-- Cite sources inline using the anchor format
+- Cite sources inline: claim or fact here.【turn0search0】
 ```
 
-**soev.ai Version**: Unchanged from LibreChat
+**soev.ai Version**: Modified from LibreChat to use OpenAI-compatible bracket citations.
 
-**Citation Unicode Markers** (used across all citation-enabled tools):
-| Marker | Purpose |
-|--------|---------|
-| `\ue202` | Citation anchor prefix |
-| `\ue203` | Highlight start |
-| `\ue204` | Highlight end |
-| `\ue200` | Group block start |
-| `\ue201` | Group block end |
+**Bracket Citation Format** (used across all citation-enabled tools):
+| Format | Example | Use case |
+|--------|---------|----------|
+| Single source | `Statement.【turn0search0】` | Cite one source |
+| Multiple sources | `Statement.【turn0search0,turn0news1】` | Cite multiple sources |
+| Index pattern | `turn{N}{sourceKey}{index}` | N=turn, sourceKey=type, index=item |
 
 ---
 
@@ -1061,17 +1053,16 @@ Performs semantic search across attached "file_search" documents using natural l
 **Citation Instructions** (appended when `fileCitations=true`):
 ```
 **CITE FILE SEARCH RESULTS:**
-Use the anchor markers provided in the tool output immediately after statements derived from file content. Reference the filename in your text:
-- File citation: "The document.pdf states that... [anchor from output]"
-- Page reference: "According to report.docx... [anchor from output]"
-- Multi-file: "Multiple sources confirm... \ue200[anchor1][anchor2]\ue201"
+Append bracket citations after text derived from file content:
+- File citation: The document states that X is Y.【turn0file_search0】
+- Multiple files: Multiple sources confirm this.【turn0file_search0,turn0file_search1】
 
-**ALWAYS mention the filename in your text before the citation marker. NEVER use markdown links or footnotes.**
+**ALWAYS reference the filename in your text. NEVER use markdown links or footnotes.**
 ```
 
-**Note**: The tool output includes anchors in the format `\ue202turn{N}file_search{index}` for each result, which the model should use verbatim.
+**Note**: The tool output includes cite examples in the format `【turn{N}file_search{index}】` for each result.
 
-**soev.ai Version**: Unchanged from LibreChat
+**soev.ai Version**: Modified from LibreChat to use OpenAI-compatible bracket citations.
 
 ---
 
@@ -1079,7 +1070,7 @@ Use the anchor markers provided in the tool output immediately after statements 
 
 **Source**: `packages/api/src/citations/markers.ts` + `packages/api/src/mcp/parsers.ts`
 
-- **Location**: `markers.ts:23-61` (generator), `parsers.ts:233-245` (injection)
+- **Location**: `markers.ts:22-54` (generator), `parsers.ts:233-245` (injection)
 - **Injected When**: MCP tool returns `artifact://file_search` resource with `fileCitations=true`
 - **Providers**: Agents endpoint (MCP tools)
 
@@ -1087,22 +1078,28 @@ MCP tools use a **centralized citation marker generator** that dynamically creat
 
 **generateCitationMarkers()** function produces:
 ```
-**Available Citations from {serverName} (use these exact markers in your response):**
-- {fileName} [{year}, {contentsubtype}]: \ue202turn{N}{sourceKey}{index}
+**Available Citations from {serverName}:**
+- {fileName} [{year}, {contentsubtype}]: 【turn{N}{sourceKey}{index}】
+
+For multiple sources: 【turn{N}{sourceKey}0,turn{N}{sourceKey}1】
 ```
 
 **Example output** (for SharePoint MCP server named "SharePoint"):
 ```
-**Available Citations from SharePoint (use these exact markers in your response):**
-- Annual Report 2024.pdf [2024, Report]: \ue202turn0sharepoint0
-- Policy Document.docx [2023, Policy]: \ue202turn0sharepoint1
+**Available Citations from SharePoint:**
+- Annual Report 2024.pdf [2024, Report]: 【turn0sharepoint0】
+- Policy Document.docx [2023, Policy]: 【turn0sharepoint1】
+
+For multiple sources: 【turn0sharepoint0,turn0sharepoint1】
 ```
 
 **Example output** (for MCP server named "Neo NL"):
 ```
-**Available Citations from Neo NL (use these exact markers in your response):**
-- Kernenergiewet.pdf [2023, Wet]: \ue202turn0neo_nl0
-- Beleidsnotitie.docx [2024, Beleid]: \ue202turn0neo_nl1
+**Available Citations from Neo NL:**
+- Kernenergiewet.pdf [2023, Wet]: 【turn0neo_nl0】
+- Beleidsnotitie.docx [2024, Beleid]: 【turn0neo_nl1】
+
+For multiple sources: 【turn0neo_nl0,turn0neo_nl1】
 ```
 
 **Key differences from static tool prompts:**
@@ -1116,10 +1113,10 @@ MCP tools use a **centralized citation marker generator** that dynamically creat
 **Citation marker format**:
 | Format | Example | Use case |
 |--------|---------|----------|
-| Document-level | `\ue202turn0sharepoint0` | Cite entire document |
-| Multi-server | `\ue202turn0neo_nl0` | Different MCP server |
+| Single source | `Statement.【turn0sharepoint0】` | Cite one document |
+| Multiple sources | `Statement.【turn0sharepoint0,turn0neo_nl0】` | Cite across servers |
 
-**soev.ai Version**: Unchanged from LibreChat
+**soev.ai Version**: Modified from LibreChat to use OpenAI-compatible bracket citations.
 
 ---
 
@@ -1895,8 +1892,8 @@ These markers are injected into content when text or tool outputs exceed size li
 | `supervisorPrompt` | `taskManagerPrompt` | Conceptual | Both coordinate multi-agent workflows, different styles |
 | `SUMMARY_PROMPT` | `CUT_OFF_PROMPT` | Purpose | Both handle context management, different scenarios |
 | RAG Full Context | RAG Semantic Search | Structure | Same footer, different context presentation |
-| Web Search citations | File Search citations | Format | Both use same unicode marker system (`\ue202`, etc.) |
-| File Search citations | MCP citations | Format | Same `\ue202` marker, MCP adds page-level (`p{page}`) support |
+| Web Search citations | File Search citations | Format | Both use same bracket citation format (`【...】`) |
+| File Search citations | MCP citations | Format | Same `【...】` bracket format |
 | `defaultTitlePrompt` | `defaultCompletionPrompt` | Purpose | Both generate titles, different output formats |
 
 ### Potential Consolidation
@@ -1904,7 +1901,7 @@ These markers are injected into content when text or tool outputs exceed size li
 1. **Artifact Prompts**: Could use a template with provider-specific formatting injected
 2. **Agent Coordination**: Could make supervisor/taskManager configurable via single prompt
 3. **RAG Templates**: Already share footer, could extract to reusable template
-4. **Citation System**: Web search and file search share citation marker format - could be unified
+4. **Citation System**: Web search, file search, and MCP tools now share unified bracket citation format (`【...】`)
 5. **Title Prompts**: Could merge into single prompt with output format parameter
 
 ---
@@ -2000,19 +1997,17 @@ tools:
     key: webSearchDescription
     text: |
       Real-time search. Results have required citation anchors...
-    citation_markers:
-      anchor: "\ue202"
-      highlight_start: "\ue203"
-      highlight_end: "\ue204"
-      group_start: "\ue200"
-      group_end: "\ue201"
+    citation_format:
+      single: '【turn{N}{type}{index}】'
+      multiple: '【turn0search0,turn0news1】'
 
   file_search:
     key: fileSearchDescription
     text: |
       Performs semantic search across attached documents...
-    citation_text: |
-      **CITE FILE SEARCH RESULTS:**...
+    citation_format:
+      single: '【turn{N}file_search{index}】'
+      multiple: '【turn0file_search0,turn0file_search1】'
 
   dalle:
     key: dalleDescription

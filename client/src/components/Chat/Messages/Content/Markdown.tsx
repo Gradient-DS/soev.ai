@@ -32,12 +32,14 @@ const Markdown = memo(({ content = '', isLatestMessage }: TContentProps) => {
       return '';
     }
     const processed = LaTeXParsing ? preprocessLaTeX(content) : content;
-    // Debug: check for citation markers
-    const hasMarkers = /[\ue200-\ue206]/.test(processed);
-    if (hasMarkers) {
-      console.log('[Markdown] Content has citation markers, length:', processed.length);
-      console.log('[Markdown] First 500 chars:', processed.slice(0, 500));
-    }
+    // Debug: log FULL raw content to see exactly what we're getting
+    console.log('[Markdown] RAW CONTENT (full):', content);
+    console.log('[Markdown] PROCESSED CONTENT (full):', processed);
+    console.log('[Markdown] Content analysis:', {
+      hasCiteTags: processed.includes('<cite'),
+      hasAngleBrackets: processed.includes('<'),
+      length: processed.length,
+    });
     return processed;
   }, [content, LaTeXParsing, isInitializing]);
 

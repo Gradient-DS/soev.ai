@@ -2,325 +2,164 @@ import { visit } from 'unist-util-visit';
 import type { Node } from 'unist';
 import type { Citation, CitationNode } from './types';
 import {
-  SPAN_REGEX,
-  STANDALONE_PATTERN,
-  CLEANUP_REGEX,
-  COMPOSITE_REGEX,
-  FALLBACK_STANDALONE_PATTERN,
+  CITE_TAG_REGEX,
+  parseIndices,
 } from '~/utils/citations';
+
+// Log when module is loaded
+console.log('[bracketCitation] Plugin module loaded');
 
 const DEBUG_CITATIONS = true;
 const debugLog = (...args: unknown[]) => {
   if (DEBUG_CITATIONS) {
-    console.log('[unicodeCitation]', ...args);
+    console.log('[bracketCitation]', ...args);
   }
 };
 
-/**
- * Checks if a standalone marker is truly standalone (not inside a composite block).
- * A marker is inside a composite if there's an opening \ue200 without a closing \ue201 after it.
- *
- * Handles both literal text format ("\ue200") and actual Unicode (U+E200) by checking
- * for both and using the rightmost occurrence. This correctly handles:
- * - Pure literal format: "\ue200...\ue201"
- * - Pure Unicode format: "..."
- * - Mixed formats: "\ue200..." (different formats for open/close)
- */
-function isStandaloneMarker(text: string, position: number): boolean {
-  const beforeText = text.substring(0, position);
-
-  // Find rightmost composite block start (either format)
-  const lastUe200Literal = beforeText.lastIndexOf('\\ue200');
-  const lastUe200Char = beforeText.lastIndexOf('\ue200');
-  const lastUe200 = Math.max(lastUe200Literal, lastUe200Char);
-
-  // Find rightmost composite block end (either format)
-  const lastUe201Literal = beforeText.lastIndexOf('\\ue201');
-  const lastUe201Char = beforeText.lastIndexOf('\ue201');
-  const lastUe201 = Math.max(lastUe201Literal, lastUe201Char);
-
-  // Standalone if: no opening marker OR closing marker appears after opening
-  return lastUe200 === -1 || (lastUe201 !== -1 && lastUe201 > lastUe200);
+interface CiteMatch {
+  fullMatch: string;
+  index: number;
+  indices: Array<{ turn: number; sourceKey: string; index: number }>;
 }
 
 /**
- * Find the next pattern match from the current position.
- * Checks for Unicode-prefixed patterns first, then falls back to plain patterns
- * for LLMs that strip the Unicode prefix entirely.
+ * Find all cite tag matches in text, sorted by position.
  */
-function findNextMatch(
-  text: string,
-  position: number,
-): { type: string; match: RegExpExecArray | null; index: number } | null {
-  // Reset regex lastIndex to start from current position
-  SPAN_REGEX.lastIndex = position;
-  COMPOSITE_REGEX.lastIndex = position;
-  STANDALONE_PATTERN.lastIndex = position;
-  FALLBACK_STANDALONE_PATTERN.lastIndex = position;
+function findCiteMatches(text: string): CiteMatch[] {
+  const matches: CiteMatch[] = [];
 
-  // Find next occurrence of each pattern
-  const spanMatch = SPAN_REGEX.exec(text);
-  const compositeMatch = COMPOSITE_REGEX.exec(text);
-
-  // For standalone, we need to check each match
-  let standaloneMatch: RegExpExecArray | null = null;
-  STANDALONE_PATTERN.lastIndex = position;
-
-  // Find the first standalone match that's not inside a composite block
+  // Match self-closing cite tags
   let match: RegExpExecArray | null;
-  while (!standaloneMatch && (match = STANDALONE_PATTERN.exec(text)) !== null) {
-    if (isStandaloneMarker(text, match.index)) {
-      standaloneMatch = match;
+  CITE_TAG_REGEX.lastIndex = 0;
+  while ((match = CITE_TAG_REGEX.exec(text)) !== null) {
+    const parsedIndices = parseIndices(match[1]);
+    if (parsedIndices) {
+      matches.push({
+        fullMatch: match[0],
+        index: match.index,
+        indices: parsedIndices,
+      });
     }
   }
 
-  let fallbackStandaloneMatch: RegExpExecArray | null = null;
-  FALLBACK_STANDALONE_PATTERN.lastIndex = position;
-  let fbMatch: RegExpExecArray | null;
-  while (!fallbackStandaloneMatch && (fbMatch = FALLBACK_STANDALONE_PATTERN.exec(text)) !== null) {
-    if (isStandaloneMarker(text, fbMatch.index)) {
-      fallbackStandaloneMatch = fbMatch;
-    }
-  }
-
-  // Find closest match
-  let nextMatch: RegExpExecArray | null = null;
-  let matchType = '';
-  let matchIndex = -1;
-  let typeIndex = -1;
-
-  if (spanMatch && (!nextMatch || spanMatch.index < matchIndex || matchIndex === -1)) {
-    nextMatch = spanMatch;
-    matchType = 'span';
-    matchIndex = spanMatch.index;
-    typeIndex = 0;
-  }
-
-  if (compositeMatch && (!nextMatch || compositeMatch.index < matchIndex || matchIndex === -1)) {
-    nextMatch = compositeMatch;
-    matchType = 'composite';
-    matchIndex = compositeMatch.index;
-    typeIndex = 0;
-  }
-
-  if (standaloneMatch && (!nextMatch || standaloneMatch.index < matchIndex || matchIndex === -1)) {
-    nextMatch = standaloneMatch;
-    matchType = 'standalone';
-    matchIndex = standaloneMatch.index;
-    typeIndex = 0;
-  }
-
-  // Check fallback patterns (only if they appear before any Unicode-prefixed match)
-  if (
-    fallbackStandaloneMatch &&
-    (!nextMatch || fallbackStandaloneMatch.index < matchIndex || matchIndex === -1)
-  ) {
-    nextMatch = fallbackStandaloneMatch;
-    matchType = 'standalone';
-    matchIndex = fallbackStandaloneMatch.index;
-    typeIndex = 0;
-    debugLog('Using fallback standalone pattern for:', fallbackStandaloneMatch[0]);
-  }
-
-  if (!nextMatch) return null;
-
-  return { type: matchType, match: nextMatch, index: typeIndex };
+  // Sort by position
+  return matches.sort((a, b) => a.index - b.index);
 }
 
 function processTree(tree: Node) {
-  debugLog('processTree called, tree type:', (tree as any).type);
-  debugLog('tree structure:', JSON.stringify(tree, null, 2).slice(0, 1000));
+  debugLog('processTree called');
 
-  visit(tree, 'text', (node, index, parent) => {
-    const textNode = node as CitationNode;
-    const parentNode = parent as CitationNode;
+  // Process both 'text' and 'html' nodes - markdown parses <cite> as HTML nodes
+  const nodeTypes = ['text', 'html'];
 
-    if (typeof textNode.value !== 'string') return;
+  for (const nodeType of nodeTypes) {
+    visit(tree, nodeType, (node, index, parent) => {
+      const textNode = node as CitationNode;
+      const parentNode = parent as CitationNode;
 
-    const originalValue = textNode.value;
+      if (typeof textNode.value !== 'string') return;
 
-    // Check if this text contains any citation markers (Unicode, literal escape, or fallback)
-    const hasMarkers = /[\ue200-\ue206]|\\ue20[0-6]|(?<![a-zA-Z0-9])turn\d+[a-zA-Z]/.test(originalValue);
-    if (hasMarkers) {
-      debugLog('Found text with citation markers:', originalValue.slice(0, 200));
-      debugLog('Parent node type:', parentNode?.type);
-    }
+      const originalValue = textNode.value;
 
-    const segments: Array<CitationNode> = [];
-
-    // Single-pass processing through the string
-    let currentPosition = 0;
-
-    // Important change: Create a map to track citation IDs by their position
-    // This ensures consistent IDs across multiple segments
-    const citationIds = new Map<number, string>();
-    const typeCounts = { span: 0, composite: 0, standalone: 0 };
-
-    while (currentPosition < originalValue.length) {
-      const nextMatchInfo = findNextMatch(originalValue, currentPosition);
-
-      if (!nextMatchInfo) {
-        // No more matches, add remaining content with cleanup
-        const remainingText = originalValue.substring(currentPosition).replace(CLEANUP_REGEX, '');
-        if (remainingText) {
-          segments.push({ type: 'text', value: remainingText });
-        }
-        break;
+      // Quick check for any bracket citations
+      if (!originalValue.includes('【')) {
+        return;
       }
 
-      const { type, match } = nextMatchInfo;
-      const matchIndex = match!.index;
-      const matchText = match![0];
+      debugLog(`Found ${nodeType} node with bracket citations:`, originalValue.slice(0, 200));
 
-      // Add cleaned text before this match
-      if (matchIndex > currentPosition) {
-        const textBeforeMatch = originalValue
-          .substring(currentPosition, matchIndex)
-          .replace(CLEANUP_REGEX, '');
-
-        if (textBeforeMatch) {
-          segments.push({ type: 'text', value: textBeforeMatch });
-        }
+      const matches = findCiteMatches(originalValue);
+      if (matches.length === 0) {
+        return;
       }
 
-      // Generate a unique ID for this citation based on its position in the text
-      const citationId = `${type}-${typeCounts[type as keyof typeof typeCounts]}-${matchIndex}`;
-      citationIds.set(matchIndex, citationId);
+      const segments: Array<CitationNode> = [];
+      let currentPosition = 0;
 
-      // Process based on match type
-      switch (type) {
-        case 'span': {
-          const spanText = matchText;
-          const cleanText = spanText.replace(/\\ue203|\\ue204/g, '');
-
-          // Look ahead for associated citation
-          let associatedCitationId: string | null = null;
-          const endOfSpan = matchIndex + matchText.length;
-
-          // Check if there's a citation right after this span
-          const nextCitation = findNextMatch(originalValue, endOfSpan);
-          if (
-            nextCitation &&
-            (nextCitation.type === 'standalone' || nextCitation.type === 'composite') &&
-            nextCitation.match!.index - endOfSpan < 5
-          ) {
-            // Use the ID that will be generated for the next citation
-            const nextIndex = nextCitation.match!.index;
-            const nextType = nextCitation.type;
-            associatedCitationId = `${nextType}-${typeCounts[nextType as keyof typeof typeCounts]}-${nextIndex}`;
+      for (const match of matches) {
+        // Add text before this match
+        if (match.index > currentPosition) {
+          const textBefore = originalValue.substring(currentPosition, match.index);
+          if (textBefore) {
+            segments.push({ type: 'text', value: textBefore });
           }
-
-          segments.push({
-            type: 'highlighted-text',
-            data: {
-              hName: 'highlighted-text',
-              hProperties: { 'data-citation-id': associatedCitationId },
-            },
-            children: [{ type: 'text', value: cleanText }],
-          });
-
-          typeCounts.span++;
-          break;
         }
 
-        case 'composite': {
-          const compositeText = matchText;
+        // Create citation node(s)
+        const isSingle = match.indices.length === 1;
+        const citationId = `cite-${match.index}-${match.indices.map((i) => `${i.turn}${i.sourceKey}${i.index}`).join('_')}`;
 
-          // Use a regular expression to extract reference indices
-          const compositeRefRegex = new RegExp(STANDALONE_PATTERN.source, 'g');
-          let refMatch: RegExpExecArray | null;
-          const citations: Array<Citation> = [];
+        if (isSingle) {
+          // Single citation
+          const citation = match.indices[0];
 
-          while ((refMatch = compositeRefRegex.exec(compositeText)) !== null) {
-            const turn = Number(refMatch[1]);
-            const refType = refMatch[2];
-            const refIndex = Number(refMatch[3]);
-
-            citations.push({
-              turn,
-              refType,
-              index: refIndex,
-            });
-          }
-
-          if (citations.length > 0) {
-            segments.push({
-              type: 'composite-citation',
-              data: {
-                hName: 'composite-citation',
-                hProperties: {
-                  // JSON stringify to survive rehype-raw HTML serialization
-                  'data-citations': JSON.stringify(citations),
-                  'data-citation-id': citationId,
-                },
-              },
-            });
-          }
-
-          typeCounts.composite++;
-          break;
-        }
-
-        case 'standalone': {
-          // Extract reference info
-          const turn = Number(match![1]);
-          const refType = match![2];
-          const refIndex = Number(match![3]);
-
+          // Add the citation marker node
           segments.push({
             type: 'citation',
             data: {
               hName: 'citation',
               hProperties: {
-                // JSON stringify to survive rehype-raw HTML serialization
                 'data-citation': JSON.stringify({
-                  turn,
-                  refType,
-                  index: refIndex,
+                  turn: citation.turn,
+                  refType: citation.sourceKey,
+                  index: citation.index,
                 }),
                 'data-citation-type': 'standalone',
                 'data-citation-id': citationId,
               },
             },
           });
+        } else {
+          // Multiple citations (composite)
+          const citations: Citation[] = match.indices.map((idx) => ({
+            turn: idx.turn,
+            refType: idx.sourceKey,
+            index: idx.index,
+          }));
 
-          typeCounts.standalone++;
-          break;
+          // Add the composite citation marker node
+          segments.push({
+            type: 'composite-citation',
+            data: {
+              hName: 'composite-citation',
+              hProperties: {
+                'data-citations': JSON.stringify(citations),
+                'data-citation-id': citationId,
+              },
+            },
+          });
+        }
+
+        currentPosition = match.index + match.fullMatch.length;
+      }
+
+      // Add remaining text
+      if (currentPosition < originalValue.length) {
+        const remaining = originalValue.substring(currentPosition);
+        if (remaining) {
+          segments.push({ type: 'text', value: remaining });
         }
       }
 
-      // Move position forward
-      currentPosition = matchIndex + matchText.length;
-    }
-
-    // Replace the original node with our segments or clean up the original
-    if (segments.length > 0 && index !== undefined) {
-      // Log detailed info about citation segments
-      const citationSegments = segments.filter(s => s.type === 'citation' || s.data?.hName === 'citation');
-      if (citationSegments.length > 0) {
-        console.log('[unicodeCitation] CITATION SEGMENTS CREATED:', citationSegments.map(s => ({
-          type: s.type,
-          hName: s.data?.hName,
-          hProperties: s.data?.hProperties,
-          fullSegment: JSON.stringify(s),
-        })));
+      // Replace node with segments
+      if (segments.length > 0 && index !== undefined) {
+        debugLog('Replacing text node with', segments.length, 'segments');
+        parentNode.children?.splice(index, 1, ...segments);
+        return index + segments.length;
       }
-      debugLog('Replacing text node with', segments.length, 'segments:', segments.map(s => ({ type: s.type, hName: s.data?.hName })));
-      parentNode.children?.splice(index, 1, ...segments);
-      return index + segments.length;
-    } else if (textNode.value !== textNode.value.replace(CLEANUP_REGEX, '')) {
-      // If we didn't create segments but there are markers to clean up
-      textNode.value = textNode.value.replace(CLEANUP_REGEX, '');
-    }
-  });
+    });
+  }
 
-  debugLog('processTree finished, final tree:', JSON.stringify(tree, null, 2).slice(0, 2000));
+  debugLog('processTree finished');
 }
 
-export function unicodeCitation() {
+export function bracketCitation() {
   return (tree: Node) => {
-    console.log('[unicodeCitation] Plugin called');
+    debugLog('[bracketCitation] Plugin called');
     processTree(tree);
-    console.log('[unicodeCitation] Plugin finished');
+    debugLog('[bracketCitation] Plugin finished');
   };
 }
+
+// Export with legacy names for backward compatibility
+export { bracketCitation as xmlCitation, bracketCitation as unicodeCitation };

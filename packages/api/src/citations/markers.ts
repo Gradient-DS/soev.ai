@@ -11,7 +11,7 @@ import type { SourceInput } from './types';
  * Generate citation markers for LLM output
  *
  * Creates a formatted guide that tells the LLM how to cite sources.
- * Format: \ue202turn{N}{sourceKey}{index}
+ * Format: 【turn{N}{sourceKey}{index}】
  *
  * @param sources - Array of source inputs
  * @param turn - Conversation turn number
@@ -29,7 +29,7 @@ export function generateCitationMarkers(
     return '';
   }
 
-  let citationGuide = `\n\n**Available Citations from ${serverName || 'MCP'} (use these exact markers in your response):**\n`;
+  let citationGuide = `\n\n**Available Citations from ${serverName || 'MCP'}:**\n`;
 
   sources.forEach((source, index) => {
     const fileName = source.fileName || `Source ${index}`;
@@ -44,9 +44,11 @@ export function generateCitationMarkers(
 
     const metadataStr = metadata.length > 0 ? ` [${metadata.join(', ')}]` : '';
 
-    // Server-name-based citation marker: \ue202turn{N}{sourceKey}{index}
-    citationGuide += `- ${fileName}${metadataStr}: \\ue202turn${turn}${sourceKey}${index}\n`;
+    // Bracket citation format: 【turn{N}{sourceKey}{index}】
+    citationGuide += `- ${fileName}${metadataStr}: 【turn${turn}${sourceKey}${index}】\n`;
   });
+
+  citationGuide += `\nFor multiple sources: 【turn${turn}${sourceKey}0,turn${turn}${sourceKey}1】\n`;
 
   return citationGuide;
 }

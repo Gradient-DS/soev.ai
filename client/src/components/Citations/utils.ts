@@ -261,6 +261,13 @@ export function parseCitationFromProps(props: {
   'data-citation'?: string;
   node?: { properties?: { citation?: ParsedCitation | string } };
 }): ParsedCitation | undefined {
+  console.log('[parseCitationFromProps] Input:', {
+    hasDataCitation: !!props['data-citation'],
+    dataCitationValue: props['data-citation'],
+    hasNodeProperties: !!props.node?.properties,
+    nodePropertiesCitation: props.node?.properties?.citation,
+  });
+
   // Try new data-* format first (survives rehype-raw)
   if (props['data-citation']) {
     try {

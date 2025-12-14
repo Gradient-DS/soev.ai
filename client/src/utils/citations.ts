@@ -1,49 +1,55 @@
 /**
- * Citation Regex Patterns
- *
- * These patterns handle two formats that LLMs may output:
- * 1. Literal escape sequences: "\ue202turn0search0" (backslash + "ue202" = 6 chars)
- * 2. Actual Unicode characters: "turn0search0" (U+E202 = 1 char, private use area)
- *
- * The system instructs LLMs to output literal escape sequences, but some models
- * may convert them to actual Unicode characters or strip them entirely.
- * These dual-format patterns ensure robust citation handling regardless of output format.
+ * OpenAI-Compatible Bracket Citation Regex Patterns
  *
  * Citation Format:
- * - \ue202 / U+E202: Standalone citation marker (before each anchor)
- * - \ue200 / U+E200: Composite group start
- * - \ue201 / U+E201: Composite group end
- * - \ue203 / U+E203: Highlight span start
- * - \ue204 / U+E204: Highlight span end
+ * 【turn{N}{sourceKey}{index}】
+ * 【turn0search0,turn0news1】
  *
- * Anchor Pattern: turn{N}{type}{index}
+ * Index Pattern: turn{N}{sourceKey}{index}
  * - N: Turn number (0-based)
- * - type: alphanumeric with underscores (e.g., neo_nl, file_search, sharepoint)
- * - index: Result index within that type (0-based)
+ * - sourceKey: alphanumeric with underscores (e.g., search, news, file_search, neo_nl)
+ * - index: Result index within that source (0-based)
  */
-
-/** Matches highlighted text spans in both literal and Unicode formats */
-export const SPAN_REGEX = /((?:\\ue203|\ue203).*?(?:\\ue204|\ue204))/g;
-
-/** Matches composite citation blocks (multiple citations grouped together) */
-export const COMPOSITE_REGEX = /((?:\\ue200|\ue200).*?(?:\\ue201|\ue201))/g;
-
-/** Matches standalone citation anchors with turn, type, and index capture groups */
-export const STANDALONE_PATTERN =
-  /(?:\\ue202|\ue202)turn(\d+)([a-zA-Z][a-zA-Z0-9_]*)(\d+)/g;
-
-/** Removes all citation marker characters from text for clean display */
-export const CLEANUP_REGEX =
-  /\\ue200|\\ue201|\\ue202|\\ue203|\\ue204|\\ue206|\ue200|\ue201|\ue202|\ue203|\ue204|\ue206/g;
-
-/** Matches invalid/orphaned citations (with leading whitespace) for removal */
-export const INVALID_CITATION_REGEX =
-  /\s*(?:\\ue202|\ue202)turn\d+[a-zA-Z][a-zA-Z0-9_]*\d+/g;
 
 /**
- * Fallback patterns for LLMs that strip the Unicode prefix entirely.
- * These match plain turn{N}{type}{index} markers without any prefix.
- * Use negative lookbehind to avoid matching within words or escaped sequences.
+ * Matches OpenAI-style bracket citations.
+ * Captures: [1] = index content
+ * Example: 【turn0search0】
  */
-export const FALLBACK_STANDALONE_PATTERN =
-  /(?<![a-zA-Z0-9\\])turn(\d+)([a-zA-Z][a-zA-Z0-9_]*)(\d+)/g;
+export const CITE_TAG_REGEX = /【([^】]+)】/g;
+
+/**
+ * Parses a single index from the index content.
+ * Captures: [1] = turn, [2] = sourceKey, [3] = index
+ */
+export const INDEX_PATTERN = /^turn(\d+)([a-zA-Z][a-zA-Z0-9_]*)(\d+)$/;
+
+/**
+ * Parses comma-separated indices.
+ * Returns array of { turn, sourceKey, index } objects or null if invalid.
+ */
+export function parseIndices(indexAttr: string): Array<{
+  turn: number;
+  sourceKey: string;
+  index: number;
+}> | null {
+  const parts = indexAttr.split(',').map((s) => s.trim());
+  const results: Array<{ turn: number; sourceKey: string; index: number }> = [];
+
+  for (const part of parts) {
+    const match = part.match(INDEX_PATTERN);
+    if (!match) return null; // Invalid format
+    results.push({
+      turn: parseInt(match[1], 10),
+      sourceKey: match[2],
+      index: parseInt(match[3], 10),
+    });
+  }
+
+  return results.length > 0 ? results : null;
+}
+
+/**
+ * Cleanup regex to remove bracket citations from text.
+ */
+export const CLEANUP_REGEX = /【[^】]*】/g;
