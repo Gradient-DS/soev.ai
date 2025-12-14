@@ -33,8 +33,6 @@ export interface UnifiedCitation {
   // File-specific
   fileId?: string; // For file identification
   fileName?: string;
-  pages?: number[]; // Relevant page numbers
-  pageRelevance?: Record<number, number>;
 
   // Metadata
   relevance?: number;
@@ -88,8 +86,6 @@ export interface SourceInput {
   attribution?: string;
   origin?: CitationOrigin;
   sourceType?: string;
-  pages?: number[];
-  pageRelevance?: Record<number, number>;
   metadata?: SourceMetadata & Record<string, unknown>;
   [key: string]: unknown;
 }

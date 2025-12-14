@@ -18,8 +18,6 @@ export type CitationOrigin =
  */
 export interface EnhancedSourceFields {
   origin?: CitationOrigin;
-  pages?: number[];
-  pageRelevance?: Record<number, number>;
   metadata?: {
     url?: string; // External URL for click-to-open
     year?: string;
@@ -30,12 +28,11 @@ export interface EnhancedSourceFields {
 }
 
 /**
- * Extended citation type with page-level support
+ * Extended citation type
  */
 export interface ExtendedCitation {
   turn: number;
   refType: string;
   index: number;
   origin?: CitationOrigin;
-  page?: number; // Specific page reference
 }

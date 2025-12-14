@@ -4,9 +4,9 @@ import type { Citation, CitationNode } from './types';
 import {
   SPAN_REGEX,
   STANDALONE_PATTERN,
-  PAGE_CITATION_PATTERN,
   CLEANUP_REGEX,
   COMPOSITE_REGEX,
+  FALLBACK_STANDALONE_PATTERN,
 } from '~/utils/citations';
 
 const DEBUG_CITATIONS = true;
@@ -17,18 +17,36 @@ const debugLog = (...args: unknown[]) => {
 };
 
 /**
- * Checks if a standalone marker is truly standalone (not inside a composite block)
+ * Checks if a standalone marker is truly standalone (not inside a composite block).
+ * A marker is inside a composite if there's an opening \ue200 without a closing \ue201 after it.
+ *
+ * Handles both literal text format ("\ue200") and actual Unicode (U+E200) by checking
+ * for both and using the rightmost occurrence. This correctly handles:
+ * - Pure literal format: "\ue200...\ue201"
+ * - Pure Unicode format: "..."
+ * - Mixed formats: "\ue200..." (different formats for open/close)
  */
 function isStandaloneMarker(text: string, position: number): boolean {
   const beforeText = text.substring(0, position);
-  const lastUe200 = beforeText.lastIndexOf('\\ue200');
-  const lastUe201 = beforeText.lastIndexOf('\\ue201');
 
+  // Find rightmost composite block start (either format)
+  const lastUe200Literal = beforeText.lastIndexOf('\\ue200');
+  const lastUe200Char = beforeText.lastIndexOf('\ue200');
+  const lastUe200 = Math.max(lastUe200Literal, lastUe200Char);
+
+  // Find rightmost composite block end (either format)
+  const lastUe201Literal = beforeText.lastIndexOf('\\ue201');
+  const lastUe201Char = beforeText.lastIndexOf('\ue201');
+  const lastUe201 = Math.max(lastUe201Literal, lastUe201Char);
+
+  // Standalone if: no opening marker OR closing marker appears after opening
   return lastUe200 === -1 || (lastUe201 !== -1 && lastUe201 > lastUe200);
 }
 
 /**
- * Find the next pattern match from the current position
+ * Find the next pattern match from the current position.
+ * Checks for Unicode-prefixed patterns first, then falls back to plain patterns
+ * for LLMs that strip the Unicode prefix entirely.
  */
 function findNextMatch(
   text: string,
@@ -38,21 +56,11 @@ function findNextMatch(
   SPAN_REGEX.lastIndex = position;
   COMPOSITE_REGEX.lastIndex = position;
   STANDALONE_PATTERN.lastIndex = position;
-  PAGE_CITATION_PATTERN.lastIndex = position;
+  FALLBACK_STANDALONE_PATTERN.lastIndex = position;
 
   // Find next occurrence of each pattern
   const spanMatch = SPAN_REGEX.exec(text);
   const compositeMatch = COMPOSITE_REGEX.exec(text);
-
-  // For page citations (more specific pattern - must check first)
-  let pageCitationMatch: RegExpExecArray | null = null;
-  PAGE_CITATION_PATTERN.lastIndex = position;
-  let pageMatch: RegExpExecArray | null;
-  while (!pageCitationMatch && (pageMatch = PAGE_CITATION_PATTERN.exec(text)) !== null) {
-    if (isStandaloneMarker(text, pageMatch.index)) {
-      pageCitationMatch = pageMatch;
-    }
-  }
 
   // For standalone, we need to check each match
   let standaloneMatch: RegExpExecArray | null = null;
@@ -62,12 +70,16 @@ function findNextMatch(
   let match: RegExpExecArray | null;
   while (!standaloneMatch && (match = STANDALONE_PATTERN.exec(text)) !== null) {
     if (isStandaloneMarker(text, match.index)) {
-      // Skip if this is actually a page citation (has 'p' followed by digits after the index)
-      const afterMatch = text.substring(match.index + match[0].length);
-      if (afterMatch.match(/^p\d+/)) {
-        continue; // This is a page citation, skip it for standalone
-      }
       standaloneMatch = match;
+    }
+  }
+
+  let fallbackStandaloneMatch: RegExpExecArray | null = null;
+  FALLBACK_STANDALONE_PATTERN.lastIndex = position;
+  let fbMatch: RegExpExecArray | null;
+  while (!fallbackStandaloneMatch && (fbMatch = FALLBACK_STANDALONE_PATTERN.exec(text)) !== null) {
+    if (isStandaloneMarker(text, fbMatch.index)) {
+      fallbackStandaloneMatch = fbMatch;
     }
   }
 
@@ -81,7 +93,6 @@ function findNextMatch(
     nextMatch = spanMatch;
     matchType = 'span';
     matchIndex = spanMatch.index;
-    // We can use a counter for typeIndex if needed
     typeIndex = 0;
   }
 
@@ -92,22 +103,23 @@ function findNextMatch(
     typeIndex = 0;
   }
 
-  // Check page citation before standalone (more specific)
-  if (
-    pageCitationMatch &&
-    (!nextMatch || pageCitationMatch.index < matchIndex || matchIndex === -1)
-  ) {
-    nextMatch = pageCitationMatch;
-    matchType = 'page-citation';
-    matchIndex = pageCitationMatch.index;
-    typeIndex = 0;
-  }
-
   if (standaloneMatch && (!nextMatch || standaloneMatch.index < matchIndex || matchIndex === -1)) {
     nextMatch = standaloneMatch;
     matchType = 'standalone';
     matchIndex = standaloneMatch.index;
     typeIndex = 0;
+  }
+
+  // Check fallback patterns (only if they appear before any Unicode-prefixed match)
+  if (
+    fallbackStandaloneMatch &&
+    (!nextMatch || fallbackStandaloneMatch.index < matchIndex || matchIndex === -1)
+  ) {
+    nextMatch = fallbackStandaloneMatch;
+    matchType = 'standalone';
+    matchIndex = fallbackStandaloneMatch.index;
+    typeIndex = 0;
+    debugLog('Using fallback standalone pattern for:', fallbackStandaloneMatch[0]);
   }
 
   if (!nextMatch) return null;
@@ -127,8 +139,8 @@ function processTree(tree: Node) {
 
     const originalValue = textNode.value;
 
-    // Check if this text contains any citation markers
-    const hasMarkers = /[\ue200-\ue206]/.test(originalValue);
+    // Check if this text contains any citation markers (Unicode, literal escape, or fallback)
+    const hasMarkers = /[\ue200-\ue206]|\\ue20[0-6]|(?<![a-zA-Z0-9])turn\d+[a-zA-Z]/.test(originalValue);
     if (hasMarkers) {
       debugLog('Found text with citation markers:', originalValue.slice(0, 200));
       debugLog('Parent node type:', parentNode?.type);
@@ -142,7 +154,7 @@ function processTree(tree: Node) {
     // Important change: Create a map to track citation IDs by their position
     // This ensures consistent IDs across multiple segments
     const citationIds = new Map<number, string>();
-    const typeCounts = { span: 0, composite: 0, standalone: 0, 'page-citation': 0 };
+    const typeCounts = { span: 0, composite: 0, standalone: 0 };
 
     while (currentPosition < originalValue.length) {
       const nextMatchInfo = findNextMatch(originalValue, currentPosition);
@@ -189,9 +201,7 @@ function processTree(tree: Node) {
           const nextCitation = findNextMatch(originalValue, endOfSpan);
           if (
             nextCitation &&
-            (nextCitation.type === 'standalone' ||
-              nextCitation.type === 'composite' ||
-              nextCitation.type === 'page-citation') &&
+            (nextCitation.type === 'standalone' || nextCitation.type === 'composite') &&
             nextCitation.match!.index - endOfSpan < 5
           ) {
             // Use the ID that will be generated for the next citation
@@ -275,36 +285,6 @@ function processTree(tree: Node) {
           });
 
           typeCounts.standalone++;
-          break;
-        }
-
-        case 'page-citation': {
-          // Extract reference info including page number
-          // Format: \ue202turn{N}{type}{index}p{page}
-          const turn = Number(match![1]);
-          const refType = match![2];
-          const refIndex = Number(match![3]);
-          const page = Number(match![4]);
-
-          segments.push({
-            type: 'citation',
-            data: {
-              hName: 'citation',
-              hProperties: {
-                // JSON stringify to survive rehype-raw HTML serialization
-                'data-citation': JSON.stringify({
-                  turn,
-                  refType,
-                  index: refIndex,
-                  page,
-                }),
-                'data-citation-type': 'page-citation',
-                'data-citation-id': citationId,
-              },
-            },
-          });
-
-          typeCounts['page-citation']++;
           break;
         }
       }
