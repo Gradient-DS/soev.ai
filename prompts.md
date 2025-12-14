@@ -17,9 +17,26 @@ This document catalogs all prompts that are injected into the LLM message chain 
   - [6. Summary Prompts](#6-summary-prompts)
   - [7. Title Generation Prompts](#7-title-generation-prompts)
   - [8. Tool Prompts](#8-tool-prompts)
+    - [8.1 Web Search Tool](#81-web-search-tool-with-citation-instructions)
+    - [8.2 File Search Tool](#82-file-search-tool-with-citation-instructions)
+    - [8.3 MCP Tool Citation Markers](#83-mcp-tool-citation-markers-dynamic)
+    - [8.4 DALL-E 3 Tool](#84-dall-e-3-tool)
+    - [8.5 Wolfram Alpha Tool](#85-wolfram-alpha-tool)
+    - [8.6 Code Execution Tool](#86-code-execution-tool)
+    - [8.7 Stable Diffusion Tool](#87-stable-diffusion-tool)
+    - [8.8 Flux API Tool](#88-flux-api-tool)
+    - [8.9 Traversaal Search Tool](#89-traversaal-search-tool)
+    - [8.10 OpenWeather Tool](#810-openweather-tool)
+    - [8.11 Calculator Tool](#811-calculator-tool)
+    - [8.12 Tavily Search Tools](#812-tavily-search-tools)
+    - [8.13 Google Search Tool](#813-google-search-tool)
+    - [8.14 Azure AI Search Tool](#814-azure-ai-search-tool)
+    - [8.15 YouTube Tools](#815-youtube-tools)
+    - [8.16 OpenAI Image Tools](#816-openai-image-tools)
   - [9. MCP Server Instructions](#9-mcp-server-instructions)
   - [10. Shadcn Component Prompts](#10-shadcn-component-prompts-reference-only)
   - [11. Memory Prompts](#11-memory-prompts)
+  - [12. Truncation Markers](#12-truncation-markers)
 - [Duplicates & Overlaps](#duplicates--overlaps)
 - [Migration Notes](#migration-notes)
 
@@ -982,15 +999,15 @@ Use anchor marker(s) immediately after the statement:
 
 ---
 
-#### 8.1.1 Web Search Tool Context (soev.ai + upstream)
+#### 8.1.1 Web Search Tool Context
 
 **Source**: `api/app/clients/tools/util/handleTools.js`
 
-- **Location**: `handleTools.js:314-341`
+- **Location**: `handleTools.js:314-334`
 - **Injected When**: Web search tool is requested
 - **Providers**: Agents endpoint
 
-This context is prepended to the tool when it's loaded:
+This context is injected into `toolContextMap` when the tool is loaded:
 
 ```
 # `web_search`:
@@ -1007,25 +1024,17 @@ Current Date & Time: {{iso_datetime}}
 1. Search ONCE, then answer using the content provided
 2. Do NOT search again to "open" a source - you cannot open URLs, and you already have the content
 3. If the highlights don't contain enough info, that source simply doesn't have what you need
+4. Use the citation anchors provided (e.g., \ue202turn0search0) to cite sources
 
-**CITATION FORMAT - UNICODE ESCAPE SEQUENCES ONLY:**
-Use these EXACT escape sequences (copy verbatim): \ue202 (before each anchor), \ue200 (group start), \ue201 (group end), \ue203 (highlight start), \ue204 (highlight end)
-
-Anchor pattern: \ue202turn{N}{type}{index} where N=turn number, type=search|news|image|ref, index=0,1,2...
-
-**Examples (copy these exactly):**
-- Single: "Statement.\ue202turn0search0"
-- Multiple: "Statement.\ue202turn0search0\ue202turn0news1"
-- Group: "Statement. \ue200\ue202turn0search0\ue202turn0news1\ue201"
-- Highlight: "\ue203Cited text.\ue204\ue202turn0search0"
-- Image: "See photo\ue202turn0image0."
-
-**CRITICAL:** Output escape sequences EXACTLY as shown. Do NOT substitute with † or other symbols. Place anchors AFTER punctuation. Cite every non-obvious fact/quote. NEVER use markdown links, [1], footnotes, or HTML tags.
+## After searching:
+- Read the highlights from each source
+- Synthesize a complete answer
+- Cite sources inline using the anchor format
 ```
 
-**soev.ai Version**: Custom "How this tool works" and "Rules" sections (soev.ai). Citation format from upstream LibreChat commit 03c9d5f (Dec 2025).
+**soev.ai Version**: Unchanged from LibreChat
 
-**Citation Unicode Markers**:
+**Citation Unicode Markers** (used across all citation-enabled tools):
 | Marker | Purpose |
 |--------|---------|
 | `\ue202` | Citation anchor prefix |
@@ -1040,7 +1049,7 @@ Anchor pattern: \ue202turn{N}{type}{index} where N=turn number, type=search|news
 
 **Source**: `api/app/clients/tools/util/fileSearch.js`
 
-- **Location**: `fileSearch.js:173-185`
+- **Location**: `fileSearch.js:171-185`
 - **Injected When**: File search tool is available AND `fileCitations` is enabled
 - **Providers**: Agents endpoint
 
@@ -1052,16 +1061,17 @@ Performs semantic search across attached "file_search" documents using natural l
 **Citation Instructions** (appended when `fileCitations=true`):
 ```
 **CITE FILE SEARCH RESULTS:**
-Use the EXACT anchor markers shown below (copy them verbatim) immediately after statements derived from file content. Reference the filename in your text:
-- File citation: "The document.pdf states that... \ue202turn0file0"
-- Page reference: "According to report.docx... \ue202turn0file1"
-- Multi-file: "Multiple sources confirm... \ue200\ue202turn0file0\ue202turn0file1\ue201"
+Use the anchor markers provided in the tool output immediately after statements derived from file content. Reference the filename in your text:
+- File citation: "The document.pdf states that... [anchor from output]"
+- Page reference: "According to report.docx... [anchor from output]"
+- Multi-file: "Multiple sources confirm... \ue200[anchor1][anchor2]\ue201"
 
-**CRITICAL:** Output these escape sequences EXACTLY as shown (e.g., \ue202turn0file0). Do NOT substitute with other characters like † or similar symbols.
 **ALWAYS mention the filename in your text before the citation marker. NEVER use markdown links or footnotes.**
 ```
 
-**soev.ai Version**: Updated from upstream LibreChat commit 03c9d5f (Dec 2025) - improved citation format with explicit escape sequence examples
+**Note**: The tool output includes anchors in the format `\ue202turn{N}file_search{index}` for each result, which the model should use verbatim.
+
+**soev.ai Version**: Unchanged from LibreChat
 
 ---
 
@@ -1205,6 +1215,519 @@ Follow the guidelines to get the best results.
 
 ---
 
+#### 8.6 Code Execution Tool
+
+**Source**: `packages/agents/src/tools/CodeExecutor.ts`
+
+- **Location**: `CodeExecutor.ts:87-94` (description), `CodeExecutor.ts:24-70` (schema)
+- **Injected When**: Code execution tool is available (`execute_code`)
+- **Providers**: Agents endpoint
+
+**description**:
+```
+Runs code and returns stdout/stderr output from a stateless execution environment, similar to running scripts in a command-line interface. Each execution is isolated and independent.
+
+Usage:
+- No network access available.
+- Generated files are automatically delivered; **DO NOT** provide download links.
+- NEVER use this tool to execute malicious code.
+```
+
+**Schema field descriptions**:
+```
+lang: "The programming language or runtime to execute the code in."
+      Enum: py, js, ts, c, cpp, java, php, rs, go, d, f90, r
+
+code: "The complete, self-contained code to execute, without any truncation or minimization.
+- The environment is stateless; variables and imports don't persist between executions.
+- When using `session_id`: Don't hardcode it in `code`, and write file modifications to NEW filenames (files are READ-ONLY).
+- Input code **IS ALREADY** displayed to the user, so **DO NOT** repeat it in your response unless asked.
+- Output code **IS NOT** displayed to the user, so **DO** write all desired output explicitly.
+- IMPORTANT: You MUST explicitly print/output ALL results you want the user to see.
+- py: This is not a Jupyter notebook environment. Use `print()` for all outputs.
+- py: Matplotlib: Use `plt.savefig()` to save plots as files.
+- js: use the `console` or `process` methods for all outputs.
+- r: IMPORTANT: No X11 display available. ALL graphics MUST use Cairo library (library(Cairo)).
+- Other languages: use appropriate output functions."
+
+session_id: "Session ID from a previous response to access generated files.
+- Files load into the current working directory (\"/mnt/data/\")
+- Use relative paths ONLY
+- Files are READ-ONLY and cannot be modified in-place
+- To modify: read original file, write to NEW filename"
+
+args: "Additional arguments to execute the code with. This should only be used if the input code requires additional arguments to run."
+```
+
+**Output Messages** (returned to model after execution):
+
+These messages are returned in tool output to guide the model's response:
+
+| Message | Content | When Used |
+|---------|---------|-----------|
+| `imageMessage` | "Image is already displayed to the user" | When code generates image files (.jpg, .jpeg, .png, .gif, .webp) |
+| `otherMessage` | "File is already downloaded by the user" | When code generates non-image files |
+| `accessMessage` | "Note: Files are READ-ONLY. Save changes to NEW filenames. To access these files in future executions, provide the `session_id` as a parameter (not in your code)." | When files are generated and can be accessed in future sessions |
+| `emptyOutputMessage` | "stdout: Empty. Ensure you're writing output explicitly.\n" | When code execution produces no stdout output |
+
+**Source**: `CodeExecutor.ts:17-22`
+
+**soev.ai Version**: Unchanged from LibreChat
+
+---
+
+#### 8.7 Stable Diffusion Tool
+
+**Source**: `api/app/clients/tools/structured/StableDiffusion.js`
+
+- **Location**: `StableDiffusion.js:37-46`
+- **Injected When**: Stable Diffusion tool is available (`stable-diffusion`)
+- **Providers**: All with `SD_WEBUI_URL` configured
+
+**description**:
+```
+You can generate images using text with 'stable-diffusion'. This tool is exclusively for visual content.
+```
+
+**description_for_model**:
+```
+// Generate images and visuals using text.
+// Guidelines:
+// - ALWAYS use {{"prompt": "7+ detailed keywords", "negative_prompt": "7+ detailed keywords"}} structure for queries.
+// - ALWAYS include the markdown url in your final response to show the user: ![caption](${basePath}/images/id.png)
+// - Visually describe the moods, details, structures, styles, and/or proportions of the image. Remember, the focus is on visual attributes.
+// - Craft your input by "showing" and not "telling" the imagery. Think in terms of what you'd want to see in a photograph or a painting.
+// - Here's an example for generating a realistic portrait photo of a man:
+// "prompt":"photo of a man in black clothes, half body, high detailed skin, coastline, overcast weather, wind, waves, 8k uhd, dslr, soft lighting, high quality, film grain, Fujifilm XT3"
+// "negative_prompt":"semi-realistic, cgi, 3d, render, sketch, cartoon, drawing, anime, out of frame, low quality, ugly, mutation, deformed"
+// - Generate images only once per human query unless explicitly requested by the user
+```
+
+**displayMessage** (shown after generation):
+```
+Stable Diffusion displayed an image. All generated images are already plainly visible, so don't repeat the descriptions in detail. Do not list download links as they are available in the UI already. The user may download the images by clicking on them, but do not mention anything about downloading to the user.
+```
+
+**soev.ai Version**: Unchanged from LibreChat
+
+---
+
+#### 8.8 Flux API Tool
+
+**Source**: `api/app/clients/tools/structured/FluxAPI.js`
+
+- **Location**: `FluxAPI.js:49-55`
+- **Injected When**: Flux tool is available (`flux`)
+- **Providers**: All with `FLUX_API_KEY` configured
+
+**description**:
+```
+Use Flux to generate images from text descriptions. This tool can generate images and list available finetunes. Each generate call creates one image. For multiple images, make multiple consecutive calls.
+```
+
+**description_for_model**:
+```
+// Transform any image description into a detailed, high-quality prompt. Never submit a prompt under 3 sentences. Follow these core rules:
+// 1. ALWAYS enhance basic prompts into 5-10 detailed sentences (e.g., "a cat" becomes: "A close-up photo of a sleek Siamese cat with piercing blue eyes. The cat sits elegantly on a vintage leather armchair, its tail curled gracefully around its paws. Warm afternoon sunlight streams through a nearby window, casting gentle shadows across its face and highlighting the subtle variations in its cream and chocolate-point fur. The background is softly blurred, creating a shallow depth of field that draws attention to the cat's expressive features. The overall composition has a peaceful, contemplative mood with a professional photography style.")
+// 2. Each prompt MUST be 3-6 descriptive sentences minimum, focusing on visual elements: lighting, composition, mood, and style
+// Use action: 'list_finetunes' to see available custom models. When using finetunes, use endpoint: '/v1/flux-pro-finetuned' (default) or '/v1/flux-pro-1.1-ultra-finetuned' for higher quality and aspect ratio.
+```
+
+**displayMessage** (shown after generation):
+```
+Flux displayed an image. All generated images are already plainly visible, so don't repeat the descriptions in detail. Do not list download links as they are available in the UI already. The user may download the images by clicking on them, but do not mention anything about downloading to the user.
+```
+
+**soev.ai Version**: Unchanged from LibreChat
+
+---
+
+#### 8.9 Traversaal Search Tool
+
+**Source**: `api/app/clients/tools/structured/TraversaalSearch.js`
+
+- **Location**: `TraversaalSearch.js:16-19`
+- **Injected When**: Traversaal search tool is available (`traversaal_search`)
+- **Providers**: All with `TRAVERSAAL_API_KEY` configured
+
+**description**:
+```
+An AI search engine optimized for comprehensive, accurate, and trusted results.
+Useful for when you need to answer questions about current events. Input should be a search query.
+```
+
+**description_for_model**:
+```
+'Please create a specific sentence for the AI to understand and use as a query to search the web based on the user's request. For example, "Find information about the highest mountains in the world." or "Show me the latest news articles about climate change and its impact on polar ice caps."'
+```
+
+**soev.ai Version**: Unchanged from LibreChat
+
+---
+
+#### 8.10 OpenWeather Tool
+
+**Source**: `api/app/clients/tools/structured/OpenWeather.js`
+
+- **Location**: `OpenWeather.js:62-67`
+- **Injected When**: OpenWeather tool is available (`open_weather`)
+- **Providers**: All with `OPENWEATHER_API_KEY` configured
+
+**description**:
+```
+Provides weather data from OpenWeather One Call API 3.0. Actions: help, current_forecast, timestamp, daily_aggregation, overview. If lat/lon not provided, specify "city" for geocoding. Units: "Celsius", "Kelvin", or "Fahrenheit" (default: Celsius). For timestamp action, use "date" in YYYY-MM-DD format.
+```
+
+**Note**: This tool does not have a separate `description_for_model`. When the model calls the tool with `action: 'help'`, it returns detailed usage instructions for all endpoints.
+
+**soev.ai Version**: Unchanged from LibreChat
+
+---
+
+#### 8.11 Calculator Tool
+
+**Source**: `packages/agents/src/tools/Calculator.ts`
+
+- **Location**: `Calculator.ts:23-24`
+- **Injected When**: Calculator tool is available (`calculator`)
+- **Providers**: Agents endpoint
+
+**description**:
+```
+Useful for getting the result of a math expression. The input to this tool should be a valid mathematical expression that could be executed by a simple calculator.
+```
+
+**Implementation Notes**:
+- Uses `mathjs` library for evaluation
+- Returns "I don't know how to do that." on evaluation errors
+
+**soev.ai Version**: Unchanged from LibreChat
+
+---
+
+#### 8.12 Tavily Search Tools
+
+There are two Tavily search tool variants available:
+
+##### 8.12.1 TavilySearchResults (Full Featured)
+
+**Source**: `api/app/clients/tools/structured/TavilySearchResults.js`
+
+- **Location**: `TavilySearchResults.js:20-21`
+- **Injected When**: Tavily search tool is available (`tavily_search_results_json`)
+- **Providers**: All with `TAVILY_API_KEY` configured
+
+**description**:
+```
+A search engine optimized for comprehensive, accurate, and trusted results. Useful for when you need to answer questions about current events.
+```
+
+**Schema field descriptions** (sent to model):
+| Field | Description |
+|-------|-------------|
+| `query` | The search query string. |
+| `max_results` | The maximum number of search results to return. Defaults to 5. |
+| `search_depth` | The depth of the search, affecting result quality and response time (`basic` or `advanced`). Default is basic for quick results and advanced for indepth high quality results but longer response time. Advanced calls equals 2 requests. |
+| `include_images` | Whether to include a list of query-related images in the response. Default is False. |
+| `include_answer` | Whether to include answers in the search results. Default is False. |
+| `include_raw_content` | Whether to include raw content in the search results. Default is False. |
+| `include_domains` | A list of domains to specifically include in the search results. |
+| `exclude_domains` | A list of domains to specifically exclude from the search results. |
+| `topic` | The category of the search. Use news ONLY if query SPECIFICALLY mentions the word "news". |
+| `time_range` | The time range back from the current date to filter results. |
+| `days` | Number of days back from the current date to include. Only if topic is news. |
+
+---
+
+##### 8.12.2 TavilySearch (Simple)
+
+**Source**: `api/app/clients/tools/structured/TavilySearch.js`
+
+- **Location**: `TavilySearch.js:46-72`
+- **Injected When**: Tavily search tool is available (`tavily_search_results_json`)
+- **Providers**: All with `TAVILY_API_KEY` configured
+
+This is a simpler variant with fewer schema options. Uses the same tool name (`tavily_search_results_json`) and description.
+
+**description**:
+```
+A search engine optimized for comprehensive, accurate, and trusted results. Useful for when you need to answer questions about current events.
+```
+
+**Schema field descriptions** (subset of full version):
+| Field | Description |
+|-------|-------------|
+| `query` | The search query string. |
+| `max_results` | The maximum number of search results to return. Defaults to 5. (max: 10) |
+| `search_depth` | The depth of the search, affecting result quality and response time (`basic` or `advanced`). Default is basic for quick results and advanced for indepth high quality results but longer response time. Advanced calls equals 2 requests. |
+| `include_images` | Whether to include a list of query-related images in the response. Default is False. |
+| `include_answer` | Whether to include answers in the search results. Default is False. |
+
+**Note**: This variant does not include `include_raw_content`, `include_domains`, `exclude_domains`, `topic`, `time_range`, or `days` fields.
+
+**soev.ai Version**: Unchanged from LibreChat
+
+---
+
+#### 8.13 Google Search Tool
+
+**Source**: `api/app/clients/tools/structured/GoogleSearch.js`
+
+- **Location**: `GoogleSearch.js:28-29`
+- **Injected When**: Google search tool is available (`google`)
+- **Providers**: All with `GOOGLE_SEARCH_API_KEY` and `GOOGLE_CSE_ID` configured
+
+**description**:
+```
+A search engine optimized for comprehensive, accurate, and trusted results. Useful for when you need to answer questions about current events.
+```
+
+**Schema field descriptions**:
+| Field | Description |
+|-------|-------------|
+| `query` | The search query string. |
+| `max_results` | The maximum number of search results to return. Defaults to 10. |
+
+**soev.ai Version**: Unchanged from LibreChat
+
+---
+
+#### 8.14 Azure AI Search Tool
+
+**Source**: `api/app/clients/tools/structured/AzureAISearch.js`
+
+- **Location**: `AzureAISearch.js:20-21`
+- **Injected When**: Azure AI Search tool is available (`azure-ai-search`)
+- **Providers**: All with `AZURE_AI_SEARCH_SERVICE_ENDPOINT`, `AZURE_AI_SEARCH_INDEX_NAME`, and `AZURE_AI_SEARCH_API_KEY` configured
+
+**description**:
+```
+Use the 'azure-ai-search' tool to retrieve search results relevant to your input
+```
+
+**Schema field descriptions**:
+| Field | Description |
+|-------|-------------|
+| `query` | Search word or phrase to Azure AI Search |
+
+**soev.ai Version**: Unchanged from LibreChat
+
+---
+
+#### 8.15 YouTube Tools
+
+**Source**: `packages/api/src/tools/toolkits/yt.ts`
+
+- **Location**: `yt.ts:2-61`
+- **Injected When**: YouTube tools are available
+- **Providers**: All with `YOUTUBE_API_KEY` configured
+
+The YouTube toolkit provides four tools for interacting with YouTube content:
+
+##### 8.15.1 youtube_search
+
+**description**:
+```
+Search for YouTube videos by keyword or phrase.
+- Required: query (search terms to find videos)
+- Optional: maxResults (number of videos to return, 1-50, default: 5)
+- Returns: List of videos with titles, descriptions, and URLs
+- Use for: Finding specific videos, exploring content, research
+Example: query="cooking pasta tutorials" maxResults=3
+```
+
+**Schema**:
+| Field | Description |
+|-------|-------------|
+| `query` | Search query terms |
+| `maxResults` | Number of results (1-50) |
+
+---
+
+##### 8.15.2 youtube_info
+
+**description**:
+```
+Get detailed metadata and statistics for a specific YouTube video.
+- Required: url (full YouTube URL or video ID)
+- Returns: Video title, description, view count, like count, comment count
+- Use for: Getting video metrics and basic metadata
+- DO NOT USE FOR VIDEO SUMMARIES, USE TRANSCRIPTS FOR COMPREHENSIVE ANALYSIS
+- Accepts both full URLs and video IDs
+Example: url="https://youtube.com/watch?v=abc123" or url="abc123"
+```
+
+**Schema**:
+| Field | Description |
+|-------|-------------|
+| `url` | YouTube video URL or ID |
+
+---
+
+##### 8.15.3 youtube_comments
+
+**description**:
+```
+Retrieve top-level comments from a YouTube video.
+- Required: url (full YouTube URL or video ID)
+- Optional: maxResults (number of comments, 1-50, default: 10)
+- Returns: Comment text, author names, like counts
+- Use for: Sentiment analysis, audience feedback, engagement review
+Example: url="abc123" maxResults=20
+```
+
+**Schema**:
+| Field | Description |
+|-------|-------------|
+| `url` | YouTube video URL or ID |
+| `maxResults` | Number of comments to retrieve |
+
+---
+
+##### 8.15.4 youtube_transcript
+
+**description**:
+```
+Fetch and parse the transcript/captions of a YouTube video.
+- Required: url (full YouTube URL or video ID)
+- Returns: Full video transcript as plain text
+- Use for: Content analysis, summarization, translation reference
+- This is the "Go-to" tool for analyzing actual video content
+- Attempts to fetch English first, then German, then any available language
+Example: url="https://youtube.com/watch?v=abc123"
+```
+
+**Schema**:
+| Field | Description |
+|-------|-------------|
+| `url` | YouTube video URL or ID |
+
+**soev.ai Version**: Unchanged from LibreChat
+
+---
+
+#### 8.16 OpenAI Image Tools
+
+**Source**: `packages/api/src/tools/toolkits/oai.ts`
+
+- **Location**: `oai.ts:1-153`
+- **Injected When**: OpenAI image tools are available (`image_gen_oai`, `image_edit_oai`)
+- **Providers**: All with `IMAGE_GEN_OAI_API_KEY` configured
+
+The OpenAI Image toolkit provides two tools for image generation and editing using the `gpt-image-1` model:
+
+##### 8.16.1 image_gen_oai (Image Generation)
+
+**description** (default, can be overridden via `IMAGE_GEN_OAI_DESCRIPTION`):
+```
+Generates high-quality, original images based solely on text, not using any uploaded reference images.
+
+When to use `image_gen_oai`:
+- To create entirely new images from detailed text descriptions that do NOT reference any image files.
+
+When NOT to use `image_gen_oai`:
+- If the user has uploaded any images and requests modifications, enhancements, or remixing based on those uploads → use `image_edit_oai` instead.
+
+Generated image IDs will be returned in the response, so you can refer to them in future requests made to `image_edit_oai`.
+```
+
+**prompt field description** (default, can be overridden via `IMAGE_GEN_OAI_PROMPT_DESCRIPTION`):
+```
+Describe the image you want in detail.
+Be highly specific—break your idea into layers:
+(1) main concept and subject,
+(2) composition and position,
+(3) lighting and mood,
+(4) style, medium, or camera details,
+(5) important features (age, expression, clothing, etc.),
+(6) background.
+Use positive, descriptive language and specify what should be included, not what to avoid.
+List number and characteristics of people/objects, and mention style/technical requirements (e.g., "DSLR photo, 85mm lens, golden hour").
+Do not reference any uploaded images—use for new image creation from text only.
+```
+
+**Schema**:
+| Field | Description |
+|-------|-------------|
+| `prompt` | Detailed image description (max 32000 chars) |
+| `background` | Sets transparency: `transparent`, `opaque`, or `auto` (default). Transparent requires png or webp output. |
+| `quality` | Image quality: `auto` (default), `high`, `medium`, or `low` |
+| `size` | Image size: `auto` (default), `1024x1024`, `1536x1024` (landscape), or `1024x1536` (portrait) |
+
+---
+
+##### 8.16.2 image_edit_oai (Image Editing)
+
+**description** (default, can be overridden via `IMAGE_EDIT_OAI_DESCRIPTION`):
+```
+Generates high-quality, original images based on text and one or more uploaded/referenced images.
+
+When to use `image_edit_oai`:
+- The user wants to modify, extend, or remix one **or more** uploaded images, either:
+- Previously generated, or in the current request (both to be included in the `image_ids` array).
+- Always when the user refers to uploaded images for editing, enhancement, remixing, style transfer, or combining elements.
+- Any current or existing images are to be used as visual guides.
+- If there are any files in the current request, they are more likely than not expected as references for image edit requests.
+
+When NOT to use `image_edit_oai`:
+- Brand-new generations that do not rely on an existing image → use `image_gen_oai` instead.
+
+Both generated and referenced image IDs will be returned in the response, so you can refer to them in future requests made to `image_edit_oai`.
+```
+
+**prompt field description** (default, can be overridden via `IMAGE_EDIT_OAI_PROMPT_DESCRIPTION`):
+```
+Describe the changes, enhancements, or new ideas to apply to the uploaded image(s).
+Be highly specific—break your request into layers:
+(1) main concept or transformation,
+(2) specific edits/replacements or composition guidance,
+(3) desired style, mood, or technique,
+(4) features/items to keep, change, or add (such as objects, people, clothing, lighting, etc.).
+Use positive, descriptive language and clarify what should be included or changed, not what to avoid.
+Always base this prompt on the most recently uploaded reference images.
+```
+
+**image_ids field description**:
+```
+IDs (image ID strings) of previously generated or uploaded images that should guide the edit.
+
+Guidelines:
+- If the user's request depends on any prior image(s), copy their image IDs into the `image_ids` array (in the same order the user refers to them).
+- Never invent or hallucinate IDs; only use IDs that are still visible in the conversation context.
+- If no earlier image is relevant, omit the field entirely.
+```
+
+**Schema**:
+| Field | Description |
+|-------|-------------|
+| `image_ids` | Array of image ID strings to use as references (min 1) |
+| `prompt` | Description of changes to apply (max 32000 chars) |
+| `quality` | Image quality: `auto` (default), `high`, `medium`, or `low` |
+| `size` | Image size: `auto`, `1024x1024`, `1536x1024`, `1024x1536`, `256x256`, or `512x512` |
+
+---
+
+##### 8.16.3 OpenAI Image Tools Display Message
+
+**Source**: `api/app/clients/tools/structured/OpenAIImageTools.js:15-16`
+
+**displayMessage** (shown after image generation/editing):
+```
+The tool displayed an image. All generated images are already plainly visible, so don't repeat the descriptions in detail. Do not list download links as they are available in the UI already. The user may download the images by clicking on them, but do not mention anything about downloading to the user.
+```
+
+**Environment Variable Overrides**:
+| Variable | Purpose |
+|----------|---------|
+| `IMAGE_GEN_OAI_DESCRIPTION` | Override image generation tool description |
+| `IMAGE_GEN_OAI_PROMPT_DESCRIPTION` | Override prompt field guidance |
+| `IMAGE_EDIT_OAI_DESCRIPTION` | Override image editing tool description |
+| `IMAGE_EDIT_OAI_PROMPT_DESCRIPTION` | Override edit prompt field guidance |
+
+**soev.ai Version**: Unchanged from LibreChat
+
+---
+
 ### 9. MCP Server Instructions
 
 **Source**: `api/server/controllers/agents/client.js`
@@ -1303,6 +1826,64 @@ When in doubt, and the user hasn't asked to remember or forget anything, END THE
 - These instructions are strict to prevent over-eager memory storage
 - The `validKeys` and `tokenLimit` sections are conditionally included based on configuration
 - Used by the memory agent to manage user memory storage via `set_memory` and `delete_memory` tools
+
+---
+
+### 12. Truncation Markers
+
+**Source**: `api/app/clients/prompts/truncate.js`
+
+These markers are injected into content when text or tool outputs exceed size limits. While not traditional "prompts," they are injected text that affects how the model interprets truncated content.
+
+#### 12.1 Text Truncation Marker
+
+- **Location**: `truncate.js:12-15`
+- **Injected When**: Text exceeds `MAX_CHAR` (255 characters by default)
+- **Providers**: All
+
+**Marker appended to truncated text**:
+```
+... [text truncated for brevity]
+```
+
+**Function**: `truncateText(text, maxLength)`
+
+---
+
+#### 12.2 Smart Truncation Marker
+
+- **Location**: `truncate.js:27-38`
+- **Injected When**: Text is truncated showing first and last halves
+- **Providers**: All
+
+**Format**:
+```
+{first half}...{last half} [text truncated for brevity]
+```
+
+**Function**: `smartTruncateText(text, maxLength)`
+
+---
+
+#### 12.3 Tool Output Omission Marker
+
+- **Location**: `truncate.js:98`
+- **Injected When**: Context overflow triggers tool call output truncation (>50% of maxContextTokens)
+- **Providers**: All
+
+**Marker replacing tool output**:
+```
+[OUTPUT_OMITTED_FOR_BREVITY]
+```
+
+**Function**: `truncateToolCallOutputs(messages, maxContextTokens, getTokenCountForMessage)`
+
+**Behavior**:
+- Only affects messages older than the 50% context threshold
+- Replaces tool call outputs to reduce token count
+- Preserves the tool call structure, only removing the output content
+
+**soev.ai Version**: Unchanged from LibreChat
 
 ---
 
@@ -1504,6 +2085,20 @@ artifacts:
 | MCP Tool Parser | `packages/api/src/mcp/parsers.ts` |
 | DALL-E Tool | `api/app/clients/tools/structured/DALLE3.js` |
 | Wolfram Tool | `api/app/clients/tools/structured/Wolfram.js` |
+| Code Execution Tool | `packages/agents/src/tools/CodeExecutor.ts` |
+| Stable Diffusion Tool | `api/app/clients/tools/structured/StableDiffusion.js` |
+| Flux API Tool | `api/app/clients/tools/structured/FluxAPI.js` |
+| Traversaal Search Tool | `api/app/clients/tools/structured/TraversaalSearch.js` |
+| OpenWeather Tool | `api/app/clients/tools/structured/OpenWeather.js` |
+| Calculator Tool | `packages/agents/src/tools/Calculator.ts` |
+| Tavily Search Tool (Full) | `api/app/clients/tools/structured/TavilySearchResults.js` |
+| Tavily Search Tool (Simple) | `api/app/clients/tools/structured/TavilySearch.js` |
+| Google Search Tool | `api/app/clients/tools/structured/GoogleSearch.js` |
+| Azure AI Search Tool | `api/app/clients/tools/structured/AzureAISearch.js` |
+| YouTube Tools | `packages/api/src/tools/toolkits/yt.ts` |
+| OpenAI Image Tools | `packages/api/src/tools/toolkits/oai.ts` |
+| OpenAI Image Tools (Implementation) | `api/app/clients/tools/structured/OpenAIImageTools.js` |
+| Truncation Markers | `api/app/clients/prompts/truncate.js` |
 | MCP Instructions | `api/server/controllers/agents/client.js` |
 | Memory Prompts | `packages/api/src/agents/memory.ts` |
 | Shadcn Docs | `api/app/clients/prompts/shadcn-docs/` |
