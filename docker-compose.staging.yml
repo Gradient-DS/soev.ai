@@ -5,11 +5,11 @@ networks:
 services:
   ## CORE APPLICATION
   librechat_api:
-    # image: ghcr.io/gradient-ds/soevai-api:${LIBRECHAT_TAG:-latest}
-    build:
-      context: .
-      dockerfile: Dockerfile.soev.ai.multi
-      target: api-build
+    image: ghcr.io/gradient-ds/soevai-api:${LIBRECHAT_TAG:-latest}
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile.soev.ai.multi
+    #   target: api-build
     container_name: librechat_api
     restart: unless-stopped
     labels:
