@@ -388,7 +388,7 @@ includedTools:
 
 # Model Specs - enforced system prompts that users cannot edit
 modelSpecs:
-  enforce: true
+  enforce: false
   prioritize: true
   list:
     - name: "soev-assistant"
