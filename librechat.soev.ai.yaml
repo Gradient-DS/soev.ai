@@ -3,7 +3,7 @@ version: 1.2.1
 
 # Custom interface configuration
 interface:
-  customWelcome: "Welkom bij soev.ai!"
+  customWelcome: "Welkom bij NEO NL!"
   # Privacy policy settings
   # privacyPolicy:
   #   externalUrl: 'https://gradient-ds.com/'
