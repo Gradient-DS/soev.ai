@@ -37,8 +37,15 @@ const ToolsDropdown = ({ disabled }: ToolsDropdownProps) => {
   } = useBadgeRowContext();
   const { data: startupConfig } = useGetStartupConfig();
 
-  const { codeEnabled, webSearchEnabled, artifactsEnabled, fileSearchEnabled } =
-    useAgentCapabilities(agentsConfig?.capabilities ?? defaultAgentCapabilities);
+  const {
+    codeEnabled,
+    webSearchEnabled,
+    artifactsEnabled: agentArtifactsEnabled,
+    fileSearchEnabled,
+  } = useAgentCapabilities(agentsConfig?.capabilities ?? defaultAgentCapabilities);
+
+  const artifactsEnabled =
+    agentArtifactsEnabled && startupConfig?.interface?.artifacts !== false;
 
   const { setIsDialogOpen: setIsCodeDialogOpen, menuTriggerRef: codeMenuTriggerRef } =
     codeApiKeyForm;

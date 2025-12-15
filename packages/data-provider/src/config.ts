@@ -568,6 +568,7 @@ export const interfaceSchema = z
     fileSearch: z.boolean().optional(),
     fileCitations: z.boolean().optional(),
     externalLinkConfirm: z.boolean().optional(),
+    artifacts: z.boolean().optional(),
   })
   .default({
     endpointsMenu: true,
@@ -594,6 +595,7 @@ export const interfaceSchema = z
     fileSearch: true,
     fileCitations: true,
     externalLinkConfirm: true,
+    artifacts: true,
   });
 
 export type TInterfaceConfig = z.infer<typeof interfaceSchema>;

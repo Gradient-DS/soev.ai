@@ -3,6 +3,7 @@ import * as Ariakit from '@ariakit/react';
 import { CheckboxButton } from '@librechat/client';
 import { ArtifactModes } from 'librechat-data-provider';
 import { WandSparkles, ChevronDown } from 'lucide-react';
+import { useGetStartupConfig } from '~/data-provider';
 import { useBadgeRowContext } from '~/Providers';
 import { useLocalize } from '~/hooks';
 import { cn } from '~/utils';
@@ -16,8 +17,11 @@ function Artifacts() {
   const localize = useLocalize();
   const { artifacts } = useBadgeRowContext();
   const { toggleState, debouncedChange, isPinned } = artifacts;
+  const { data: startupConfig } = useGetStartupConfig();
 
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+
+  const artifactsEnabled = startupConfig?.interface?.artifacts !== false;
 
   const currentState = useMemo<ArtifactsToggleState>(() => {
     if (typeof toggleState === 'string' && toggleState) {
@@ -54,7 +58,7 @@ function Artifacts() {
     }
   }, [isCustomEnabled, debouncedChange]);
 
-  if (!isEnabled && !isPinned) {
+  if (!artifactsEnabled || (!isEnabled && !isPinned)) {
     return null;
   }
 
